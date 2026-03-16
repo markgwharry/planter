@@ -25,8 +25,8 @@
 //   MOISTURE_DRY  = analogRead() with sensor in dry air
 //   MOISTURE_WET  = analogRead() with sensor in water
 // The defaults below are reasonable starting points.
-#define MOISTURE_DRY  2800
-#define MOISTURE_WET  1200
+#define MOISTURE_DRY  3825  // raw ADC in dry air
+#define MOISTURE_WET  2358  // raw ADC in water (settled)
 
 // ── Sleep ────────────────────────────────────────────────────────
 #define SLEEP_MINUTES 30
@@ -162,7 +162,7 @@ void updateDisplay(int moisturePct) {
 
 // ── DEBUG MODE ───────────────────────────────────────────────────
 // Set to false to enable deep sleep for production use
-#define DEBUG_MODE true
+#define DEBUG_MODE false
 
 // ── Setup (runs on every wake) ───────────────────────────────────
 void setup() {
