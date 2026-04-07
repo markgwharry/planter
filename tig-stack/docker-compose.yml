@@ -1,0 +1,45 @@
+services:
+  influxdb:
+    image: influxdb:2.7
+    container_name: planter-influxdb
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=planterpass
+      - DOCKER_INFLUXDB_INIT_ORG=planter
+      - DOCKER_INFLUXDB_INIT_BUCKET=moisture
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=planter-token-change-me
+
+  telegraf:
+    image: telegraf:1.31
+    container_name: planter-telegraf
+    restart: unless-stopped
+    depends_on:
+      - influxdb
+    volumes:
+      - ./telegraf.conf:/etc/telegraf/telegraf.conf:ro
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: planter-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - influxdb
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=planterpass
+
+volumes:
+  influxdb-data:
+  grafana-data:

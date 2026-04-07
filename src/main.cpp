@@ -35,9 +35,7 @@
 #define HEARTBEAT_INTERVAL 48  // wakes between heartbeats (48 × 30 min ≈ 24 h)
 
 // ── MQTT ────────────────────────────────────────────────────────
-#define MQTT_TOPIC_DATA   "planter/moisture"
-#define MQTT_TOPIC_ALERT  "planter/alert"
-#define MQTT_CLIENT_ID    "planter-esp32"
+#define MQTT_CLIENT_ID    "planter-" PLANT_ID
 
 // ── RTC memory (survives deep sleep) ────────────────────────────
 RTC_DATA_ATTR int wakeCount = 0;
@@ -110,7 +108,9 @@ bool publishMQTT(int moisturePct, const char* status, bool alert) {
         "{\"moisture\":%d,\"status\":\"%s\",\"alert\":%s,\"wake\":%d}",
         moisturePct, status, alert ? "true" : "false", wakeCount);
 
-    const char* topic = alert ? MQTT_TOPIC_ALERT : MQTT_TOPIC_DATA;
+    char topic[64];
+    snprintf(topic, sizeof(topic), "planter/%s/%s",
+        PLANT_ID, alert ? "alert" : "moisture");
     bool ok = mqtt.publish(topic, payload);
     Serial.printf("MQTT → %s: %s [%s]\n", topic, payload, ok ? "ok" : "fail");
     mqtt.disconnect();
