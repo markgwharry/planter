@@ -29,6 +29,8 @@
             "lineWidth": 2,
             "fillOpacity": 10,
             "spanNulls": true,
+            "pointSize": 6,
+            "showPoints": "always",
             "thresholdsStyle": { "mode": "dashed" }
           }
         },
@@ -42,7 +44,7 @@
         {
           "refId": "A",
           "datasource": { "type": "influxdb" },
-          "query": "from(bucket: \"moisture\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\")\n  |> filter(fn: (r) => r._field == \"moisture\")\n  |> group(columns: [\"plant_id\"])\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")"
+          "query": "from(bucket: \"moisture\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\")\n  |> filter(fn: (r) => r._field == \"moisture\")\n  |> filter(fn: (r) => r.message_type == \"moisture\")\n  |> group(columns: [\"plant_id\"])\n  |> keep(columns: [\"_time\", \"_value\", \"plant_id\"])\n  |> rename(columns: {_value: \"moisture\"})\n  |> yield(name: \"raw\")"
         }
       ]
     },
@@ -72,14 +74,11 @@
         "reduceOptions": { "calcs": ["lastNotNull"] },
         "showThresholdLabels": true
       },
-      "repeat": "plant",
-      "repeatDirection": "h",
-      "maxPerRow": 3,
       "targets": [
         {
           "refId": "A",
           "datasource": { "type": "influxdb" },
-          "query": "from(bucket: \"moisture\")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\")\n  |> filter(fn: (r) => r._field == \"moisture\")\n  |> filter(fn: (r) => r.plant_id == \"${plant}\")\n  |> last()\n  |> yield(name: \"last\")"
+          "query": "from(bucket: \"moisture\")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\")\n  |> filter(fn: (r) => r._field == \"moisture\")\n  |> filter(fn: (r) => r.message_type == \"moisture\")\n  |> group(columns: [\"plant_id\"])\n  |> last()\n  |> keep(columns: [\"_time\", \"_value\", \"plant_id\"])\n  |> yield(name: \"last\")"
         }
       ]
     },
@@ -88,13 +87,25 @@
       "type": "table",
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 18 },
       "datasource": { "type": "influxdb", "uid": "" },
-      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "_time" },
+            "properties": [{ "id": "displayName", "value": "Time" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "plant_id" },
+            "properties": [{ "id": "displayName", "value": "Plant" }]
+          }
+        ]
+      },
       "options": { "sortBy": [{ "displayName": "Time", "desc": true }] },
       "targets": [
         {
           "refId": "A",
           "datasource": { "type": "influxdb" },
-          "query": "from(bucket: \"moisture\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\")\n  |> filter(fn: (r) => r.message_type == \"alert\")\n  |> filter(fn: (r) => r._field == \"moisture\" or r._field == \"status\")\n  |> pivot(rowKey: [\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> keep(columns: [\"_time\", \"plant_id\", \"moisture\", \"status\"])\n  |> sort(columns: [\"_time\"], desc: true)\n  |> yield(name: \"alerts\")"
+          "query": "from(bucket: \"moisture\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mqtt_consumer\")\n  |> filter(fn: (r) => r.message_type == \"alert\")\n  |> filter(fn: (r) => r._field == \"moisture\")\n  |> keep(columns: [\"_time\", \"_value\", \"plant_id\"])\n  |> rename(columns: {_value: \"moisture\"})\n  |> sort(columns: [\"_time\"], desc: true)\n  |> yield(name: \"alerts\")"
         }
       ]
     }
@@ -102,21 +113,8 @@
   "refresh": "5m",
   "schemaVersion": 39,
   "tags": ["planter", "iot"],
-  "templating": {
-    "list": [
-      {
-        "name": "plant",
-        "type": "query",
-        "datasource": { "type": "influxdb" },
-        "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"moisture\", tag: \"plant_id\")",
-        "refresh": 2,
-        "includeAll": true,
-        "multi": true,
-        "current": { "selected": true, "text": ["All"], "value": ["$__all"] }
-      }
-    ]
-  },
-  "time": { "from": "now-7d", "to": "now" },
+  "templating": { "list": [] },
+  "time": { "from": "now-24h", "to": "now" },
   "title": "Planter — Soil Moisture",
   "uid": "planter-moisture"
 }

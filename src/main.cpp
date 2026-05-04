@@ -213,7 +213,7 @@ const char* getStatus(int pct) {
 }
 
 // ── DEBUG MODE ───────────────────────────────────────────────────
-#define DEBUG_MODE true
+#define DEBUG_MODE false
 
 // ── Setup (runs on every wake) ───────────────────────────────────
 void setup() {
