@@ -29,6 +29,21 @@
 // ── Sleep ────────────────────────────────────────────────────────
 #define SLEEP_MINUTES 30
 
+// ── Battery monitor (1S LiPo via resistive divider) ─────────────
+// Divider midpoint → an ADC1-capable pin (GPIO1–10). On THIS board the
+// only free ADC pin is D9/GPIO8 — D4/GPIO5 is taken by EPD_BUSY.
+// CONFIRM BATT_PIN against the actual wiring before trusting readings.
+// No cap on the tap: readBatteryVolts() discards the first sample and
+// averages to cope with the divider's source impedance.
+#define BATT_PIN    8       // D9 / GPIO8, ADC1_CH7  ← set to your wired pin
+#define BATT_DIV    2.0f    // nominal ratio for equal resistors
+#define BATT_TRIM   1.0f    // single-point DMM trim: BATT_TRIM = V_dmm / V_reported
+#define BATT_LOW    3.60f   // moisture reading suspect at/below this (LDO dropout)
+#define BATT_CRIT   3.45f   // recharge now
+#define BATT_VALID  2.50f   // below this the sense pin reads as unwired/floating:
+                            // ignore it (no alert, show "--") so an unconfirmed
+                            // divider can't spam false low-battery alerts.
+
 // ── Alert thresholds ────────────────────────────────────────────
 #define ALERT_DRY     20   // below this → alert
 #define ALERT_WET     90   // above this → alert
@@ -69,6 +84,23 @@ int readMoisturePercent() {
     return constrain(pct, 0, 100);
 }
 
+// ── Read battery voltage ─────────────────────────────────────────
+// Reads the divider tap on BATT_PIN and scales back to cell voltage.
+// No cap on the tap, so discard the first sample (lets the ADC S&H
+// settle against the divider impedance) and average the rest.
+float readBatteryVolts() {
+    analogReadResolution(12);
+    analogReadMilliVolts(BATT_PIN);            // discard first
+    uint32_t mv = 0;
+    for (int i = 0; i < 16; i++) {
+        mv += analogReadMilliVolts(BATT_PIN);  // factory-calibrated mV
+        delay(2);
+    }
+    float volts = (mv / 16.0f) * BATT_DIV * BATT_TRIM / 1000.0f;
+    Serial.printf("Battery: %.2f V\n", volts);
+    return volts;
+}
+
 // ── WiFi ─────────────────────────────────────────────────────────
 bool connectWiFi() {
     Serial.printf("Connecting to WiFi '%s'...\n", WIFI_SSID);
@@ -89,7 +121,7 @@ bool connectWiFi() {
 }
 
 // ── MQTT publish ─────────────────────────────────────────────────
-bool publishMQTT(int moisturePct, const char* status, bool alert) {
+bool publishMQTT(int moisturePct, const char* status, float batt, bool battLow, bool alert) {
     mqtt.setServer(MQTT_HOST, MQTT_PORT);
 
     unsigned long start = millis();
@@ -103,10 +135,11 @@ bool publishMQTT(int moisturePct, const char* status, bool alert) {
         return false;
     }
 
-    char payload[128];
+    char payload[160];
     snprintf(payload, sizeof(payload),
-        "{\"moisture\":%d,\"status\":\"%s\",\"alert\":%s,\"wake\":%d}",
-        moisturePct, status, alert ? "true" : "false", wakeCount);
+        "{\"moisture\":%d,\"status\":\"%s\",\"batt\":%.2f,\"batt_low\":%s,\"alert\":%s,\"wake\":%d}",
+        moisturePct, status, batt, battLow ? "true" : "false",
+        alert ? "true" : "false", wakeCount);
 
     char topic[64];
     snprintf(topic, sizeof(topic), "planter/%s/%s",
@@ -155,13 +188,22 @@ void drawBar(int x, int y, int w, int h, int pct) {
 }
 
 // ── Main display render ──────────────────────────────────────────
-void updateDisplay(int moisturePct) {
+void updateDisplay(int moisturePct, float batt, bool battLow) {
     display.setRotation(0);
     display.setFullWindow();
     display.firstPage();
 
     do {
         display.fillScreen(GxEPD_WHITE);
+
+        // Battery voltage, small, top-left. "!" when low, "--" if no sense pin.
+        char bv[12];
+        if (batt < BATT_VALID) snprintf(bv, sizeof(bv), "BAT --");
+        else snprintf(bv, sizeof(bv), "%.2fV%s", batt, battLow ? "!" : "");
+        display.setFont(&FreeSans9pt7b);
+        display.setTextColor(GxEPD_BLACK);
+        display.setCursor(4, 14);
+        display.print(bv);
 
         drawPlant(100, 50);
 
@@ -241,26 +283,31 @@ void setup() {
     display.init(115200, true, 2, false);
     Serial.println("Display initialised.");
 
-    // Read sensor
+    // Read sensors
     analogReadResolution(12);
     int moisture = readMoisturePercent();
     const char* status = getStatus(moisture);
-    Serial.printf("Moisture: %d%% (%s)\n", moisture, status);
+    float batt = readBatteryVolts();
+    bool battValid = (batt >= BATT_VALID);
+    bool battLow = battValid && (batt <= BATT_LOW);
+    Serial.printf("Moisture: %d%% (%s)  Battery: %s",
+        moisture, status, battValid ? "" : "(no sense pin)\n");
+    if (battValid) Serial.printf("%.2f V%s\n", batt, battLow ? " (LOW)" : "");
 
     // Draw to e-ink
     Serial.println("Drawing to display...");
-    updateDisplay(moisture);
+    updateDisplay(moisture, batt, battLow);
     Serial.println("Display updated.");
     display.hibernate();
 
-    // Decide whether to send MQTT
-    bool alert = (moisture < ALERT_DRY || moisture > ALERT_WET);
+    // Decide whether to send MQTT (low battery is itself an alert)
+    bool alert = (moisture < ALERT_DRY || moisture > ALERT_WET || battLow);
     bool heartbeat = (wakeCount % HEARTBEAT_INTERVAL == 0);
 
     if (alert || heartbeat) {
         Serial.printf("MQTT send: %s\n", alert ? "ALERT" : "heartbeat");
         if (connectWiFi()) {
-            publishMQTT(moisture, status, alert);
+            publishMQTT(moisture, status, batt, battLow, alert);
             WiFi.disconnect(true);
             WiFi.mode(WIFI_OFF);
         }
@@ -290,10 +337,13 @@ void setup() {
 
 void loop() {
     if (DEBUG_MODE) {
-        // readMoisturePercent() already prints "Moisture raw ADC: %d".
-        // No e-ink redraw here — saves the panel and keeps the loop snappy.
+        // readMoisturePercent()/readBatteryVolts() already print their raw
+        // values. No e-ink redraw here — saves the panel, keeps it snappy.
+        // Use the battery line here to set BATT_TRIM against a DMM.
         int moisture = readMoisturePercent();
-        Serial.printf("  -> %d%% (%s)\n", moisture, getStatus(moisture));
+        float batt = readBatteryVolts();
+        Serial.printf("  -> %d%% (%s)  batt %.2f V\n",
+            moisture, getStatus(moisture), batt);
         delay(3000);
     }
 }

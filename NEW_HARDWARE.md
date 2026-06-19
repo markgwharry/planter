@@ -41,11 +41,17 @@ V_batt = analogReadMilliVolts(BATT_PIN) × 2   (mV)
 |---|---|---|---|
 | R1 | Resistor, 1% metal film | 220 kΩ | divider top (B+ → tap) |
 | R2 | Resistor, 1% metal film | 220 kΩ | divider bottom (tap → GND) |
-| C1 | Ceramic capacitor | 100 nF | tap → GND; buffers the ADC sample-and-hold |
+| C1 | Ceramic capacitor | 100 nF | **optional** — tap → GND; buffers the ADC sample-and-hold |
 
 Continuous divider current = 4.2 V / 440 kΩ ≈ **9.5 µA**, negligible against the XIAO's
-own deep-sleep draw (~50–150 µA in practice). Source impedance at the tap is ~110 kΩ;
-C1 supplies the ADC's sample-and-hold charge so this stays accurate.
+own deep-sleep draw (~50–150 µA in practice). Source impedance at the tap is ~110 kΩ.
+C1 helps the ADC settle but is **not required** — the firmware discards the first sample
+and averages 16 reads to cope without it. The existing builds use a bare two-resistor
+divider with no cap; fit C1 only if you want marginally cleaner readings.
+
+The resistor values need not be known exactly: a divider is linear through zero, so a
+single DMM trim (`BATT_TRIM`, below) corrects any ratio. Equal resistors just make the
+nominal `BATT_DIV = 2.0` close enough to read sensibly before trimming.
 
 ## Schematic
 
@@ -56,7 +62,7 @@ C1 supplies the ADC's sample-and-hold charge so this stays accurate.
      │
      ├───────────────► BATT_PIN  (D9 / GPIO8, ADC1_CH7)
      │
-    [C1] 100nF
+    [C1] 100nF   (optional)
      │
     [R2] 220k
      │
@@ -75,34 +81,29 @@ sensor and the e-ink display.
 Tap **B+** and **B-** from the LiPo solder pads on the underside of the XIAO (the same
 pads the cell connects to). No cut to the existing moisture/display wiring is required.
 
-## Firmware hooks
+## Firmware
 
-Add to [src/main.cpp](src/main.cpp):
+**Implemented** in [src/main.cpp](src/main.cpp) — `readBatteryVolts()`, MQTT `batt` /
+`batt_low` fields, low-battery alert, and a voltage readout top-left on the e-ink.
+You only need to confirm two constants once the divider is wired:
 
-```cpp
-// ── Battery monitor ─────────────────────────────────────────────
-#define BATT_PIN     8     // D9 / GPIO8, ADC1_CH7
-#define BATT_DIV     2.0f  // 220k / 220k divider
-#define BATT_TRIM    1.0f  // fine-trim for resistor tolerance (see below)
-#define BATT_LOW     3.60f // warn: at/below LDO dropout, moisture suspect
-#define BATT_CRIT    3.45f // critical: recharge now
+| Constant | Default | Set when |
+|---|---|---|
+| `BATT_PIN` | `8` (D9/GPIO8) | Must match your wired ADC pin. **D4/GPIO5 is `EPD_BUSY` on this board — do not use it here.** |
+| `BATT_TRIM` | `1.0` | After the build: `BATT_TRIM = V_dmm / V_reported` (single-point trim). |
 
-float readBatteryVolts() {
-    analogReadResolution(12);
-    uint32_t mv = 0;
-    analogReadMilliVolts(BATT_PIN);          // discard first (settling)
-    for (int i = 0; i < 8; i++) { mv += analogReadMilliVolts(BATT_PIN); delay(2); }
-    return (mv / 8.0f) * BATT_DIV * BATT_TRIM / 1000.0f;
-}
-```
+`readBatteryVolts()` reads `BATT_PIN` with `analogReadMilliVolts()` (factory eFuse ADC
+calibration), discards the first sample and averages 16 — no cap needed.
 
-Integration points:
-- Call `readBatteryVolts()` in `setup()` alongside the moisture read.
-- Add `"batt":%.2f` and a `"batt_low":true/false` flag to the MQTT payload in
-  `publishMQTT()` so the TIG stack can chart it.
-- Treat `V_batt <= BATT_LOW` as an alert condition (reuse the existing alert path) — at
-  that point the moisture figure is no longer trustworthy.
-- Optionally show a small battery glyph / voltage on the e-ink in `updateDisplay()`.
+Behaviour:
+- Low battery (`V_batt ≤ BATT_LOW`) reuses the existing MQTT alert path — at that point
+  the moisture figure is no longer trustworthy.
+- The payload carries `"batt":x.xx` and `"batt_low":true/false` for the TIG stack to chart.
+- **Validity guard:** if the reading is below `BATT_VALID` (2.50 V) the pin is treated as
+  unwired/floating — no alert is raised and the e-ink shows `BAT --`. This makes the
+  firmware safe to flash *before* the divider is confirmed: a floating GPIO8 can't spam
+  false low-battery alerts. Once a real cell is being read, the voltage appears
+  automatically with no reflash needed.
 
 ### Approximate 1S LiPo state-of-charge
 
