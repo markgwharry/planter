@@ -23,8 +23,8 @@
 #define EPD_MOSI  9   // D10 — HW SPI MOSI
 
 // ── Calibration ──────────────────────────────────────────────────
-#define MOISTURE_DRY  3825  // raw ADC in dry air
-#define MOISTURE_WET  2358  // raw ADC in water (settled)
+#define MOISTURE_DRY  3160  // raw ADC bone-dry (asymptote, on 1S LiPo) → 0%
+#define MOISTURE_WET  1300  // raw ADC submerged in water (settled)    → 100%
 
 // ── Sleep ────────────────────────────────────────────────────────
 #define SLEEP_MINUTES 30
@@ -213,6 +213,9 @@ const char* getStatus(int pct) {
 }
 
 // ── DEBUG MODE ───────────────────────────────────────────────────
+// true  → stays awake, prints raw ADC + % every 3 s for calibration.
+//         Capture raw in dry air → MOISTURE_DRY, raw submerged → MOISTURE_WET.
+// false → normal deep-sleep operation.
 #define DEBUG_MODE false
 
 // ── Setup (runs on every wake) ───────────────────────────────────
@@ -287,11 +290,10 @@ void setup() {
 
 void loop() {
     if (DEBUG_MODE) {
-        delay(60000);
+        // readMoisturePercent() already prints "Moisture raw ADC: %d".
+        // No e-ink redraw here — saves the panel and keeps the loop snappy.
         int moisture = readMoisturePercent();
-        Serial.printf("Moisture: %d%%\n", moisture);
-        display.init(115200, true, 2, false);
-        updateDisplay(moisture);
-        display.hibernate();
+        Serial.printf("  -> %d%% (%s)\n", moisture, getStatus(moisture));
+        delay(3000);
     }
 }
