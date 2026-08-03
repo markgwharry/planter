@@ -8,8 +8,11 @@ flag when the cell has sagged far enough to corrupt the moisture reading.
 
 The moisture sensor is **ratiometric to its supply** — its analogue output scales
 with VCC. The ESP32-S3 ADC, by contrast, references a fixed internal band-gap, so it
-does **not** compensate. The sensor is powered from the XIAO's `3V3` rail, which is the
-output of the onboard LDO (an AP2112K-class part, dropout ≈ 250 mV at light load).
+does **not** compensate. The sensor is fed from `D5`/`GPIO6`, driven high only for the
+duration of a read (see [WIRING.md](WIRING.md)) — but a GPIO high level follows the
+`3V3` rail, which is the output of the onboard LDO (an AP2112K-class part, dropout
+≈ 250 mV at light load). Switching the supply saves power; it does **not** decouple the
+sensor from the rail, so the dropout problem below is unchanged.
 
 | Cell voltage | 3V3 rail | Effect on moisture reading |
 |---|---|---|
