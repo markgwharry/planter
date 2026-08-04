@@ -3,7 +3,51 @@
 #include <driver/gpio.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
-#include <GxEPD2_BW.h>
+
+// ── Panel selection ──────────────────────────────────────────────
+// Fitted panel is the B/W GDEH0154D67 (SSD1681) — the default. A tri-colour
+// B/W/R module was fitted as a stopgap once after a panel was lost to ribbon
+// damage; the build is back on B/W parts and we stock them, so the tri-colour
+// options below are kept for compatibility, not because anything ships on one.
+//
+// All three are 200x200 and share the same 8-pin interface, so the wiring and
+// every layout coordinate in this file are unchanged; only the driver class,
+// the colour depth and the refresh cost differ.
+//
+//   0 = B/W   GDEH0154D67 (SSD1681) — fitted, default,            2.6 s refresh
+//   1 = B/W/R GDEH0154Z90 (SSD1682) — Waveshare 1.54" (B) V2,      14 s refresh
+//   2 = B/W/R GDEW0154Z04 (IL0376F) — older Waveshare 1.54" (B),  7.5 s refresh
+//
+// If you do fit a tri-colour module and it shows nothing, or garbage, on
+// PANEL 1, try PANEL 2. The two tri-colour modules are pin- and size-identical
+// but use different controllers, and Waveshare has shipped both under the same
+// product name.
+// Override without editing this file: build_flags = -DPANEL=1 in platformio.ini.
+#ifndef PANEL
+  #define PANEL 0
+#endif
+
+#if PANEL == 0
+  #include <GxEPD2_BW.h>
+  #define EPD_CLASS   GxEPD2_BW
+  #define EPD_DRIVER  GxEPD2_154_D67
+  // NOT GxEPD_RED: GxEPD2_BW::drawPixel treats any non-zero colour as WHITE, so
+  // accent elements would silently disappear rather than fall back to black.
+  #define EPD_ACCENT  GxEPD_BLACK
+#elif PANEL == 1
+  #include <GxEPD2_3C.h>
+  #define EPD_CLASS   GxEPD2_3C
+  #define EPD_DRIVER  GxEPD2_154_Z90c
+  #define EPD_ACCENT  GxEPD_RED
+#elif PANEL == 2
+  #include <GxEPD2_3C.h>
+  #define EPD_CLASS   GxEPD2_3C
+  #define EPD_DRIVER  GxEPD2_154c
+  #define EPD_ACCENT  GxEPD_RED
+#else
+  #error "PANEL must be 0 (B/W D67), 1 (B/W/R Z90c) or 2 (B/W/R 154c)"
+#endif
+
 #include <Fonts/FreeMonoBold24pt7b.h>
 #include <Fonts/FreeSans9pt7b.h>
 #include <Fonts/FreeSans12pt7b.h>
@@ -52,12 +96,34 @@
 // ── MQTT ────────────────────────────────────────────────────────
 #define MQTT_CLIENT_ID    "planter-" PLANT_ID
 
-// ── RTC memory (survives deep sleep) ────────────────────────────
-RTC_DATA_ATTR int wakeCount = 0;
+// ── Redraw policy ────────────────────────────────────────────────
+// A B/W refresh costs ~2.6 s of panel + MCU activity (~0.03 mAh). E-paper holds
+// its image with the panel unpowered, so the cheapest refresh is the one we
+// don't do: skip the redraw when nothing a human would notice has changed.
+// Forced anyway on the daily heartbeat, so the panel still gets one clean full
+// cycle every 24 h (keeps ghosting from building up) and a stuck reading can
+// never masquerade as a fresh one for longer than a day.
+//
+// On this panel that saves ~1.2 mAh/day of a ~1.4 mAh/day budget — worth having,
+// but not load-bearing. It was load-bearing on the tri-colour part, where a 14 s
+// refresh every wake came to 7.7 mAh/day and dwarfed the rest of the design.
+// Set false to go back to redrawing on every wake; on B/W that is a safe
+// diagnostic step rather than a budget emergency.
+#define REDRAW_ONLY_ON_CHANGE true
+#define REDRAW_DELTA          3     // percentage points
+
+// ── RTC memory (survives deep sleep, lost on power removal) ─────
+RTC_DATA_ATTR int  wakeCount        = 0;
+RTC_DATA_ATTR int  lastDrawnPct     = -1000;  // sentinel: nothing drawn yet
+RTC_DATA_ATTR bool lastDrawnAlert   = false;
+RTC_DATA_ATTR bool lastDrawnBattLow = false;
 
 // ── Display setup ────────────────────────────────────────────────
-GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT> display(
-    GxEPD2_154_D67(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY)
+// Full-height page buffer: 200x200 mono = 5 000 B per plane — one plane on the
+// fitted B/W panel. GxEPD2_3C would keep two (black + red) = 10 kB, still
+// trivial on the S3, so either way we render in a single page.
+EPD_CLASS<EPD_DRIVER, EPD_DRIVER::HEIGHT> display(
+    EPD_DRIVER(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY)
 );
 
 // ── WiFi + MQTT clients ─────────────────────────────────────────
@@ -166,29 +232,67 @@ void drawDrop(int cx, int cy, int h, bool filled) {
     }
 }
 
-void drawPlant(int cx, int cy) {
-    display.fillRoundRect(cx - 18, cy + 8, 36, 6, 2, GxEPD_BLACK);
-    display.fillRect(cx - 15, cy + 14, 30, 14, GxEPD_BLACK);
-    display.fillRect(cx - 12, cy + 28, 24, 6, GxEPD_BLACK);
+// The pot and foliage take the moisture colour: a red plant reads as "this
+// plant is in trouble" from the other end of the allotment, well before the
+// numbers are legible.
+void drawPlant(int cx, int cy, uint16_t colour) {
+    display.fillRoundRect(cx - 18, cy + 8, 36, 6, 2, colour);
+    display.fillRect(cx - 15, cy + 14, 30, 14, colour);
+    display.fillRect(cx - 12, cy + 28, 24, 6, colour);
 
-    display.fillRect(cx - 1, cy - 28, 3, 38, GxEPD_BLACK);
+    display.fillRect(cx - 1, cy - 28, 3, 38, colour);
 
-    display.fillCircle(cx - 10, cy - 18, 7, GxEPD_BLACK);
-    display.fillCircle(cx - 16, cy - 22, 5, GxEPD_BLACK);
-    display.fillCircle(cx + 10, cy - 10, 7, GxEPD_BLACK);
-    display.fillCircle(cx + 16, cy - 14, 5, GxEPD_BLACK);
-    display.fillCircle(cx, cy - 32, 6, GxEPD_BLACK);
-    display.fillCircle(cx + 2, cy - 38, 4, GxEPD_BLACK);
+    display.fillCircle(cx - 10, cy - 18, 7, colour);
+    display.fillCircle(cx - 16, cy - 22, 5, colour);
+    display.fillCircle(cx + 10, cy - 10, 7, colour);
+    display.fillCircle(cx + 16, cy - 14, 5, colour);
+    display.fillCircle(cx, cy - 32, 6, colour);
+    display.fillCircle(cx + 2, cy - 38, 4, colour);
 }
 
-void drawBar(int x, int y, int w, int h, int pct) {
+// Frame stays black so the bar's extent is always readable; only the fill
+// carries the alert colour. Ticks mark the two alert thresholds.
+void drawBar(int x, int y, int w, int h, int pct, uint16_t fillColour) {
     display.drawRect(x, y, w, h, GxEPD_BLACK);
     int fill = (w - 4) * pct / 100;
-    display.fillRect(x + 2, y + 2, fill, h - 4, GxEPD_BLACK);
+    display.fillRect(x + 2, y + 2, fill, h - 4, fillColour);
+
+    const int thresholds[] = { ALERT_DRY, ALERT_WET };
+    for (int t : thresholds) {
+        display.drawFastVLine(x + 2 + (w - 4) * t / 100, y - 4, 3, GxEPD_BLACK);
+    }
+}
+
+// 3 px border, drawn only when something needs a human. On a B/W panel
+// EPD_ACCENT is black, so this still works — it just isn't as loud.
+void drawAlertFrame() {
+    display.fillRect(0,   0,   200,   3, EPD_ACCENT);
+    display.fillRect(0,   197, 200,   3, EPD_ACCENT);
+    display.fillRect(0,   0,     3, 200, EPD_ACCENT);
+    display.fillRect(197, 0,     3, 200, EPD_ACCENT);
+}
+
+// ── Status string ────────────────────────────────────────────────
+const char* getStatus(int pct) {
+    if      (pct < 20) return "Very Dry!";
+    else if (pct < 40) return "Needs Water";
+    else if (pct < 70) return "Good";
+    else if (pct < 90) return "Moist";
+    else               return "Very Wet";
 }
 
 // ── Main display render ──────────────────────────────────────────
+// Colour policy: BLACK carries the information, the accent means "a human needs
+// to do something". On the fitted B/W panel EPD_ACCENT is black, so the layout
+// renders in one ink and simply loses the emphasis — no state depends on colour
+// alone. The split is kept so a tri-colour build still looks right: red pigment
+// has lower contrast and coarser edges, so it goes on large, low-detail
+// elements — the frame, the plant, the big digits — never on fine strokes.
 void updateDisplay(int moisturePct, float batt, bool battLow) {
+    const bool moistureAlert  = (moisturePct < ALERT_DRY || moisturePct > ALERT_WET);
+    const uint16_t moistCol   = moistureAlert ? EPD_ACCENT : GxEPD_BLACK;
+    const uint16_t battCol    = battLow       ? EPD_ACCENT : GxEPD_BLACK;
+
     display.setRotation(0);
     display.setFullWindow();
     display.firstPage();
@@ -196,16 +300,19 @@ void updateDisplay(int moisturePct, float batt, bool battLow) {
     do {
         display.fillScreen(GxEPD_WHITE);
 
+        if (moistureAlert || battLow) drawAlertFrame();
+
         // Battery voltage, small, top-left. "!" when low, "--" if no sense pin.
+        // Inset to x=8 to clear the 3 px alert frame.
         char bv[12];
         if (batt < BATT_VALID) snprintf(bv, sizeof(bv), "BAT --");
         else snprintf(bv, sizeof(bv), "%.2fV%s", batt, battLow ? "!" : "");
         display.setFont(&FreeSans9pt7b);
-        display.setTextColor(GxEPD_BLACK);
-        display.setCursor(4, 14);
+        display.setTextColor(battCol);
+        display.setCursor(8, 16);
         display.print(bv);
 
-        drawPlant(100, 50);
+        drawPlant(100, 50, moistCol);
 
         if (moisturePct >= 25) drawDrop(80, 92, 14, true);
         if (moisturePct >= 50) drawDrop(100, 97, 14, true);
@@ -214,7 +321,7 @@ void updateDisplay(int moisturePct, float batt, bool battLow) {
         display.drawLine(10, 115, 190, 115, GxEPD_BLACK);
 
         display.setFont(&FreeMonoBold24pt7b);
-        display.setTextColor(GxEPD_BLACK);
+        display.setTextColor(moistCol);
 
         char buf[6];
         snprintf(buf, sizeof(buf), "%d%%", moisturePct);
@@ -226,32 +333,32 @@ void updateDisplay(int moisturePct, float batt, bool battLow) {
         display.setCursor(textX, 152);
         display.print(buf);
 
-        const char* status;
-        if      (moisturePct < 20) { status = "Very Dry!"; }
-        else if (moisturePct < 40) { status = "Needs Water"; }
-        else if (moisturePct < 70) { status = "Good"; }
-        else if (moisturePct < 90) { status = "Moist"; }
-        else                       { status = "Very Wet"; }
+        const char* status = getStatus(moisturePct);
 
         display.setFont(&FreeSans12pt7b);
-        display.setTextColor(GxEPD_BLACK);
+        display.setTextColor(moistCol);
         display.getTextBounds(status, 0, 0, &bx, &by, &bw, &bh);
         textX = (200 - bw) / 2;
         display.setCursor(textX, 176);
         display.print(status);
 
-        drawBar(20, 185, 160, 10, moisturePct);
+        drawBar(20, 185, 160, 10, moisturePct, moistCol);
 
     } while (display.nextPage());
 }
 
-// ── Status string ────────────────────────────────────────────────
-const char* getStatus(int pct) {
-    if      (pct < 20) return "Very Dry!";
-    else if (pct < 40) return "Needs Water";
-    else if (pct < 70) return "Good";
-    else if (pct < 90) return "Moist";
-    else               return "Very Wet";
+// ── Redraw decision ──────────────────────────────────────────────
+// See REDRAW_ONLY_ON_CHANGE. Returns true when the panel image would actually
+// differ in a way worth 14 s of refresh.
+bool needsRedraw(int pct, bool alert, bool battLow, bool heartbeat) {
+    if (!REDRAW_ONLY_ON_CHANGE)   return true;
+    if (lastDrawnPct < -100)      return true;   // cold boot / power cycle
+    if (heartbeat)                return true;   // daily clean cycle
+    if (alert   != lastDrawnAlert)   return true;
+    if (battLow != lastDrawnBattLow) return true;
+    if (abs(pct - lastDrawnPct) >= REDRAW_DELTA) return true;
+    // Band change inside the delta still changes the words on screen.
+    return strcmp(getStatus(pct), getStatus(lastDrawnPct)) != 0;
 }
 
 // ── DEBUG MODE ───────────────────────────────────────────────────
@@ -274,16 +381,8 @@ void setup() {
     gpio_hold_dis((gpio_num_t)EPD_MOSI);
     gpio_deep_sleep_hold_dis();
 
-    // Initialise SPI on custom pins
-    Serial.println("Initialising SPI...");
-    SPI.begin(EPD_SCLK, -1, EPD_MOSI, EPD_CS);
-
-    // Initialise display
-    Serial.println("Initialising display...");
-    display.init(115200, true, 2, false);
-    Serial.println("Display initialised.");
-
-    // Read sensors
+    // Read sensors first: the redraw decision below depends on them, and the
+    // panel costs less to leave asleep than to init and not use.
     analogReadResolution(12);
     int moisture = readMoisturePercent();
     const char* status = getStatus(moisture);
@@ -294,15 +393,29 @@ void setup() {
         moisture, status, battValid ? "" : "(no sense pin)\n");
     if (battValid) Serial.printf("%.2f V%s\n", batt, battLow ? " (LOW)" : "");
 
-    // Draw to e-ink
-    Serial.println("Drawing to display...");
-    updateDisplay(moisture, batt, battLow);
-    Serial.println("Display updated.");
-    display.hibernate();
-
     // Decide whether to send MQTT (low battery is itself an alert)
     bool alert = (moisture < ALERT_DRY || moisture > ALERT_WET || battLow);
     bool heartbeat = (wakeCount % HEARTBEAT_INTERVAL == 0);
+
+    // Draw to e-ink, but only if the image would actually change. SPI and the
+    // panel are brought up inside this branch for the same reason.
+    if (needsRedraw(moisture, alert, battLow, heartbeat)) {
+        Serial.println("Initialising SPI + display...");
+        SPI.begin(EPD_SCLK, -1, EPD_MOSI, EPD_CS);
+        display.init(115200, true, 2, false);
+
+        Serial.println("Drawing to display...");
+        updateDisplay(moisture, batt, battLow);
+        display.hibernate();
+        Serial.println("Display updated.");
+
+        lastDrawnPct     = moisture;
+        lastDrawnAlert   = alert;
+        lastDrawnBattLow = battLow;
+    } else {
+        Serial.printf("Display unchanged (last drawn %d%%), skipping refresh.\n",
+            lastDrawnPct);
+    }
 
     if (alert || heartbeat) {
         Serial.printf("MQTT send: %s\n", alert ? "ALERT" : "heartbeat");
