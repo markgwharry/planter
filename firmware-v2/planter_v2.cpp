@@ -5,6 +5,10 @@
 //  "second sketch": it is NOT the same wiring as src/main.cpp (v1). Do not flash
 //  it onto a v1 hand-wired board — the peripheral-power logic is INVERTED.
 //
+//  This source now supports both the original v2 XIAO ESP32-S3 proposal and the
+//  Rev A XIAO ESP32-C6 carrier. Build the C6 variant with platformio-c6.ini;
+//  PLANTER_XIAO_C6 is set there and selects the C6 carrier pin map below.
+//
 //  To build: this file replaces src/main.cpp for v2 hardware. Either move it to
 //  src/ (and move the v1 main.cpp out of src/ so PlatformIO doesn't compile two
 //  setup()/loop()s), or point src_dir at firmware-v2/. It expects the existing
@@ -84,21 +88,33 @@
 #include <Fonts/FreeSans12pt7b.h>
 #include "secrets.h"
 
-// ── Pin definitions: Seeed XIAO ESP32-S3 ────────────────────────
-// Moisture sensor (AOUT is an ADC input; VCC is on the switched rail)
-#define MOISTURE_PIN  1   // D0/A0 → GPIO1 (ADC1)
-
-// Peripheral rail enable → Q1 gate. LOW = 3V3_SW ON, HIGH = OFF.
-// R1 (100k pull-up to 3V3) holds Q1 OFF whenever GPIO6 floats (boot, deep sleep).
-#define PERIPH_EN     6   // D5 → GPIO6
-
-// E-ink display (Waveshare 1.54" B/W, SSD1681) — VCC on 3V3_SW
-#define EPD_CS    2   // D1
-#define EPD_DC    3   // D2
-#define EPD_RST   4   // D3
-#define EPD_BUSY  5   // D4  (panel output → our input)
-#define EPD_SCLK  7   // D8  — default HW SPI SCK
-#define EPD_MOSI  9   // D10 — HW SPI MOSI
+// ── Board pin definitions ────────────────────────────────────────
+// Both carriers use one active-low high-side P-FET for 3V3_SW. The C6 map is
+// deliberately expressed as GPIO numbers, matching Arduino's XIAO C6 variant.
+#if defined(PLANTER_XIAO_C6)
+  #define MOISTURE_PIN  1   // D1/A1 → GPIO1 (ADC1_CH1)
+  #define PERIPH_EN     2   // D2/A2 → GPIO2; LOW = 3V3_SW ON
+  #define EPD_CS       21   // D3
+  #define EPD_DC       22   // D4
+  #define EPD_RST      23   // D5
+  #define EPD_BUSY     16   // D6 (panel output → our input)
+  #define EPD_SCLK     19   // D8, hardware SPI SCK
+  #define EPD_MOSI     18   // D10, hardware SPI MOSI
+  #define BATT_PIN      0   // D0/A0 → GPIO0 (ADC1_CH0)
+  #define BATT_DIV   2.0f   // 200k external top + 200k onboard bottom
+#else
+  // Original v2 XIAO ESP32-S3 proposal.
+  #define MOISTURE_PIN  1   // D0/A0 → GPIO1 (ADC1)
+  #define PERIPH_EN     6   // D5 → GPIO6; LOW = 3V3_SW ON
+  #define EPD_CS        2   // D1
+  #define EPD_DC        3   // D2
+  #define EPD_RST       4   // D3
+  #define EPD_BUSY      5   // D4 (panel output → our input)
+  #define EPD_SCLK      7   // D8, hardware SPI SCK
+  #define EPD_MOSI      9   // D10, hardware SPI MOSI
+  #define BATT_PIN      8   // D9 / GPIO8, ADC1_CH7
+  #define BATT_DIV   2.0f   // equal 220k/220k divider
+#endif
 
 // ── Calibration ──────────────────────────────────────────────────
 // ⚠ v2 RECAL REQUIRED. On v1 the sensor was fed from a GPIO output (~40 Ω Rout,
@@ -113,7 +129,7 @@
 #define SLEEP_MINUTES          30    // normal duty cycle
 #define SLEEP_CONSERVE_MINUTES 360   // low-battery: long naps (6 h)
 
-// ── Battery monitor (1S LiPo, 220k/220k divider + 100 nF, tap → GPIO8) ──
+// ── Battery monitor (1S LiPo, 1:2 divider + fitted 100 nF tap cap) ──
 // Two distinct battery ideas, do not conflate them:
 //   SUSPECT (3.60): LDO nears dropout → moisture reading is untrustworthy.
 //                   Informational only: flags the payload, suppresses moisture
@@ -121,8 +137,6 @@
 //   CONSERVE (3.50)/RESUME (3.65): the §6 conservation band. Below CONSERVE the
 //                   node skips WiFi entirely and naps long; it only resumes
 //                   normal operation once back above RESUME (hysteresis).
-#define BATT_PIN      8       // D9 / GPIO8, ADC1_CH7
-#define BATT_DIV      2.0f    // nominal ratio for equal 220k/220k
 #define BATT_TRIM     1.0f    // single-point DMM trim: BATT_TRIM = V_dmm / V_reported
 #define BATT_SUSPECT  3.60f   // moisture suspect at/below (LDO dropout)
 #define BATT_CONSERVE 3.50f   // enter conservation: no radio, long naps
@@ -229,7 +243,12 @@ void disablePeripheralRail() {
 void releaseHolds() {
     for (gpio_num_t p : SW_SIGNAL_LINES) gpio_hold_dis(p);
     gpio_hold_dis((gpio_num_t)EPD_BUSY);
-    gpio_deep_sleep_hold_dis();
+    // ESP32-S3 needs the legacy global deep-sleep hold gate in addition to
+    // each pad's hold bit. ESP32-C6 supports individual pad hold directly in
+    // deep sleep and its current ESP-IDF does not expose that global API.
+    #if !defined(PLANTER_XIAO_C6)
+      gpio_deep_sleep_hold_dis();
+    #endif
 }
 
 // ── Read moisture sensor (rail must already be ON) ───────────────
@@ -599,9 +618,13 @@ void setup() {
                   mins, conserving ? " (conserving)" : "");
     Serial.flush();
 
-    // Latch the parked rail-side lines through deep sleep. GPIO6 is left
+    // Latch the parked rail-side lines through deep sleep. PERIPH_EN is left
     // unlatched on purpose: R1 pulls it HIGH (rail OFF) the moment it floats.
-    gpio_deep_sleep_hold_en();
+    // C6's per-pad holds persist directly; S3 additionally needs the legacy
+    // global deep-sleep hold gate.
+    #if !defined(PLANTER_XIAO_C6)
+      gpio_deep_sleep_hold_en();
+    #endif
     esp_sleep_enable_timer_wakeup((uint64_t)mins * 60ULL * 1000000ULL);
     esp_deep_sleep_start();
 }

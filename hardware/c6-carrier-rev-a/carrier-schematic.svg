@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900">
+  <defs>
+    <style>
+      .bg{fill:#f7f8fa}.panel{fill:#fff;stroke:#172033;stroke-width:3}.soft{fill:#eef4ff;stroke:#315ea8;stroke-width:3}
+      .power{fill:#fff1e8;stroke:#a84618;stroke-width:3}.sw{fill:#eaf8ee;stroke:#287844;stroke-width:3}
+      .warn{fill:#fff8d8;stroke:#967000;stroke-width:2}.wire{fill:none;stroke:#172033;stroke-width:4}
+      .pwrwire{fill:none;stroke:#b43d18;stroke-width:5}.sig{fill:none;stroke:#315ea8;stroke-width:3}
+      .rail{fill:none;stroke:#287844;stroke-width:5}.dash{fill:none;stroke:#687184;stroke-width:2;stroke-dasharray:9 8}
+      .title{font:700 32px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#172033}
+      .head{font:700 21px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#172033}
+      .txt{font:17px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#283247}
+      .small{font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:#3f495d}
+      .net{font:700 15px ui-monospace,SFMono-Regular,Menlo,monospace;fill:#172033}
+      .white{fill:#fff}
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#172033"/></marker>
+    <marker id="arrow-red" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#b43d18"/></marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1400" height="900"/>
+  <text class="title" x="55" y="58">Planter XIAO ESP32-C6 carrier - Rev A</text>
+  <text class="txt" x="55" y="88">Schematic-level capture drawing - protected 1S cell, battery sensing, switched sensor and WeAct e-paper</text>
+
+  <rect class="power" x="55" y="145" rx="14" width="190" height="118"/>
+  <text class="head" x="150" y="178" text-anchor="middle">1S LiPo cell</text>
+  <text class="txt" x="150" y="211" text-anchor="middle">B+ / B-</text>
+  <text class="small" x="150" y="239" text-anchor="middle">raw cell side only</text>
+
+  <rect class="power" x="315" y="145" rx="14" width="220" height="118"/>
+  <text class="head" x="425" y="178" text-anchor="middle">Protection PCB</text>
+  <text class="txt" x="425" y="211" text-anchor="middle">common-port P+ / P-</text>
+  <text class="small" x="425" y="239" text-anchor="middle">charge + discharge path</text>
+  <path class="pwrwire" d="M245 204 H315" marker-end="url(#arrow-red)"/>
+
+  <rect class="power" x="605" y="135" rx="14" width="220" height="138"/>
+  <text class="head" x="715" y="169" text-anchor="middle">J1 + JP1</text>
+  <text class="txt" x="715" y="202" text-anchor="middle">protected battery input</text>
+  <text class="txt" x="715" y="229" text-anchor="middle">removable current link</text>
+  <text class="small" x="715" y="254" text-anchor="middle">P+ / P- only</text>
+  <path class="pwrwire" d="M535 204 H605" marker-end="url(#arrow-red)"/>
+
+  <rect class="soft" x="930" y="125" rx="16" width="400" height="220"/>
+  <text class="head" x="1130" y="162" text-anchor="middle">U1 - Seeed XIAO ESP32-C6</text>
+  <text class="txt" x="970" y="205">BAT+/BAT-: underside pads</text>
+  <text class="txt" x="970" y="234">USB-C: charge + programming</text>
+  <text class="txt" x="970" y="263">3V3: regulated peripheral source</text>
+  <text class="txt" x="970" y="292">A0: battery ADC / A1: moisture ADC</text>
+  <text class="small" x="970" y="320">Antenna end requires copper and metal keepout</text>
+  <path class="pwrwire" d="M825 204 H930" marker-end="url(#arrow-red)"/>
+  <text class="net" x="850" y="188">PACK+</text>
+
+  <rect class="panel" x="605" y="335" rx="12" width="220" height="150"/>
+  <text class="head" x="715" y="369" text-anchor="middle">Battery divider</text>
+  <text class="txt" x="635" y="404">R2 200k: PACK+ - A0</text>
+  <text class="txt" x="635" y="431">R10 200k: onboard - GND</text>
+  <text class="txt" x="635" y="458">C1 100nF: A0 - GND</text>
+  <path class="pwrwire" d="M715 273 V335" marker-end="url(#arrow-red)"/>
+  <path class="sig" d="M825 410 H880 V292 H930" marker-end="url(#arrow)"/>
+  <text class="net" x="842" y="397">VBAT_ADC</text>
+
+  <rect class="sw" x="945" y="415" rx="14" width="370" height="140"/>
+  <text class="head" x="1130" y="449" text-anchor="middle">Q1 - AO3401A high-side switch</text>
+  <text class="txt" x="980" y="483">Source = 3V3     Drain = 3V3_SW</text>
+  <text class="txt" x="980" y="512">Gate = D2 via 1k; 100k pull-up</text>
+  <text class="small" x="980" y="537">PERIPH_EN_N: LOW = on, default off</text>
+  <path class="rail" d="M1130 345 V415" marker-end="url(#arrow)"/>
+  <text class="net" x="1143" y="385">3V3</text>
+
+  <rect class="sw" x="870" y="645" rx="14" width="210" height="140"/>
+  <text class="head" x="975" y="681" text-anchor="middle">J2 moisture</text>
+  <text class="txt" x="905" y="716">1  3V3_SW</text>
+  <text class="txt" x="905" y="744">2  AOUT - 1k - A1</text>
+  <text class="txt" x="905" y="772">3  GND</text>
+
+  <rect class="sw" x="1140" y="615" rx="14" width="210" height="200"/>
+  <text class="head" x="1245" y="651" text-anchor="middle">J3 WeAct 2x4</text>
+  <text class="txt" x="1175" y="685">1 BUSY   2 RES</text>
+  <text class="txt" x="1175" y="713">3 D/C    4 CS</text>
+  <text class="txt" x="1175" y="741">5 SCL    6 SDA</text>
+  <text class="txt" x="1175" y="769">7 GND    8 VCC</text>
+  <text class="small" x="1175" y="797">VCC = 3V3_SW</text>
+
+  <path class="rail" d="M1130 555 V590 H975 V645" marker-end="url(#arrow)"/>
+  <path class="rail" d="M1130 590 H1245 V615" marker-end="url(#arrow)"/>
+  <text class="net" x="1005" y="582">3V3_SW</text>
+
+  <path class="sig" d="M1080 724 H1110 V312 H930" marker-end="url(#arrow)"/>
+  <text class="net" x="885" y="622">MOIST_ADC - D1/A1</text>
+  <path class="sig" d="M1140 700 H1100 V585 H875 V325 H930" marker-end="url(#arrow)"/>
+  <text class="net" x="650" y="608">EPD: D3-D6, D8, D10</text>
+
+  <rect class="warn" x="55" y="620" rx="12" width="690" height="165"/>
+  <text class="head" x="85" y="656">Protection and first-article constraints</text>
+  <text class="txt" x="85" y="692">- Never connect cell B- to carrier ground; system ground is protected P-.</text>
+  <text class="txt" x="85" y="725">- R3 bottom divider resistor is DNP on the current XIAO C6 revision.</text>
+  <text class="txt" x="85" y="758">- Verify A0 = approximately PACK+/2 before connecting the finished assembly.</text>
+  <path class="dash" d="M55 830 H1345"/>
+  <text class="small" x="55" y="860">Capture source: README.md + netlist.csv. This drawing is not yet a fabrication schematic.</text>
+</svg>

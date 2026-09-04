@@ -1,0 +1,35 @@
+Net,From,To,Notes
+PACK_IN+,J1.1,JP1.1,Protected P+ only
+PACK+,JP1.2,U1.BAT+,Underside XIAO battery pad
+PACK+,JP1.2,R2.1,Battery divider top
+GND,J1.2,U1.BAT-,Protected P-; never cell B-
+GND,J1.2,U1.GND,System ground
+VBAT_ADC,R2.2,U1.D0-A0,GPIO0 ADC1_CH0
+VBAT_ADC,R2.2,C1.1,100nF filter
+VBAT_ADC,R2.2,R3.1,DNP bottom resistor
+GND,C1.2,GND,
+GND,R3.2,GND,R3 DNP on current XIAO revision
+3V3,U1.3V3,Q1.S,Always-on regulated rail
+3V3,R1.1,Q1.G,100k default-off pull-up
+PERIPH_EN_N,U1.D2,R4.1,GPIO2 active low
+PERIPH_EN_N_GATE,R4.2,Q1.G,1k gate resistor
+3V3_SW,Q1.D,J2.1,Moisture power
+3V3_SW,Q1.D,J3.8,E-paper VCC
+3V3_SW,Q1.D,C2.1,10uF near J3
+3V3_SW,Q1.D,C3.1,100nF near J3
+GND,C2.2,GND,
+GND,C3.2,GND,
+MOIST_OUT,J2.2,R5.1,Probe analogue output
+MOIST_ADC,R5.2,U1.D1-A1,GPIO1 ADC1_CH1
+MOIST_ADC,R5.2,C4.1,100nF filter
+GND,C4.2,GND,
+GND,J2.3,GND,
+EPD_BUSY,J3.1,U1.D6,GPIO16
+EPD_RST,J3.2,U1.D5,GPIO23
+EPD_DC,J3.3,U1.D4,GPIO22
+EPD_CS,J3.4,U1.D3,GPIO21
+EPD_SCLK,J3.5,U1.D8,GPIO19 hardware SCK
+EPD_MOSI,J3.6,U1.D10,GPIO18 hardware MOSI
+GND,J3.7,GND,
+SPARE_D7,U1.D7,TP9,GPIO17
+SPARE_D9,U1.D9,TP10,GPIO20; MISO deliberately unused
