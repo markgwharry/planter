@@ -2,8 +2,9 @@
 
 The initial package at 02cb06c contained an architectural SVG and a connection
 checklist, not a native KiCad schematic. Review found two circuit errors and
-several incomplete capture details. This revision corrects the electrical
-specification but does not claim fabrication readiness or an ERC pass.
+several incomplete capture details. The electrical specification was corrected
+at 930e41c. The subsequent native KiCad capture now passes ERC and independent
+exported-netlist checks; fabrication readiness is still not established.
 
 ## Corrections
 
@@ -35,7 +36,8 @@ specification but does not claim fabrication readiness or an ERC pass.
 
 ## Still required before fabrication
 
-- Native KiCad schematic, verified symbol/footprint pin mappings, and ERC.
+- Verified physical footprints and symbol-to-pad/contact mapping for U1/J1/J2/J3;
+  native schematic capture and ERC are now complete.
 - Exact J1/J2 connector parts and polarity, protection board identification,
   selected XIAO underside contact method, PCB outline and mounting holes.
 - Confirm the display being fitted: the mechanical input is WeAct, while the
@@ -57,7 +59,20 @@ The removable charging cover remains a recorded enclosure follow-up.
 - S3 v2 regression build with `platformio-s3-v2.ini`: PASS (50,068 bytes RAM;
   742,369 bytes application flash).
 - SVG rendered with Inkscape and visually checked in full; labels are readable.
-- No hardware flashed and no KiCad ERC/DRC claimed.
+- Native `planter-c6-rev-a.kicad_sch` generated, opened by KiCad CLI 10.0.5,
+  exported to SVG, rendered and visually inspected.
+- KiCad ERC with errors, warnings and exclusions included: **0 violations**;
+  see `erc.rpt`. No per-item exclusions or custom rule suppressions were added.
+  KiCad defaults still omit the checks listed at the bottom of its report.
+- `check_kicad.py`: **PASS**, 64 exported terminals / 26 components, component
+  values, explicit VBUS no-connect and four intentionally pending footprints.
+  Injected swapped MOSFET pins, missing divider terminal, swapped display power
+  pins and wrong divider value are all rejected by the checker.
+- Standard resistor/capacitor, Q1 SOT-23, current-link and test-point footprints
+  assigned provisionally; module and connector footprints intentionally blank.
+- External protection PCB retained with the battery by design decision; no
+  part-specific protection behaviour is claimed until the board is identified.
+- No hardware flashed, PCB layout generated or PCB DRC claimed in this pass.
 
 ## Primary evidence
 

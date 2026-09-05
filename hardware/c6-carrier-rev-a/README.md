@@ -1,7 +1,8 @@
 # Planter XIAO ESP32-C6 carrier - Rev A
 
-Status: reviewed electrical specification and circuit drawing (2026-09-05).
-KiCad schematic capture/ERC and PCB layout/DRC are still outstanding.
+Status: native KiCad 10 schematic captured and checked (2026-09-05).
+ERC: zero errors/warnings. Exported connectivity: all 64 terminals match the
+reviewed checklist. PCB layout/DRC and physical verification remain outstanding.
 See `review.md` for corrections and remaining physical decisions.
 
 This carrier replaces Dupont wiring while retaining the XIAO as the radio,
@@ -26,6 +27,27 @@ second protection PCB.
 
 The XIAO's own USB-C remains the only charger. Charging-cover access is an
 enclosure requirement but is deliberately outside this electrical revision.
+
+### Protection decision for this prototype
+
+Use one of Mark's existing small B+/B-/P+/P- protection boards, off the carrier,
+secured and insulated with the cell. This uses the parts already available and
+keeps protection attached when the battery assembly is unplugged. Do not add a
+second protection circuit to this revision of the carrier. A later integrated
+version needs a selected protection IC/FET pair, thresholds, leakage budget and
+a separately reviewed layout; it is not just a footprint substitution.
+
+The four pad labels alone do not establish the board's ratings, cutoffs or
+common-port charging behaviour. Before assembly, obtain clear photos of both
+sides and chip markings, identify the part/supplier, and confirm compatibility
+with the exact 1S cell and the XIAO charger. Prior successful installs are useful
+experience, not verification of those specifications. Use an insulated mount
+and strain relief, not loose bare boards or Duponts on the battery circuit.
+
+Charge indoors, dry, and within the cell manufacturer's temperature limits.
+Do not assume the inexpensive protection board provides temperature monitoring.
+Do not test overcharge or short-circuit cutoff by abusing a real cell; any such
+characterisation needs an appropriate current-limited bench setup.
 
 ## Fixed pin map
 
@@ -162,14 +184,43 @@ Do not call the board field-ready until all of these pass:
 
 ## Files
 
-- `bom.csv`: initial electrical BOM and DNP/configuration parts.
-- `carrier-schematic.svg`: component-level circuit drawing with named nets.
+- `planter-c6-rev-a.kicad_pro`: open this project in KiCad 10.
+- `planter-c6-rev-a.kicad_sch`: authoritative editable schematic, one A3 sheet.
+- `Planter.kicad_sym` and `sym-lib-table`: self-contained project symbols.
+- `planter-c6-rev-a.svg`: preview exported directly from the native schematic.
+- `erc.rpt`: KiCad 10.0.5 electrical-rule report, no exclusions added.
+- `check_kicad.py`: validates actual exported KiCad connectivity and values.
+- `make_kicad.py`: reproducible capture baseline; do not rerun over GUI edits.
+- `LIBRARY-LICENSE.md`: attribution for the standard KiCad symbol extracts.
+- `bom.csv`: fitted electrical BOM, with exact connector selection pending.
+- `carrier-schematic.svg`: earlier component-level overview, not the native source.
 - `review.md`: review findings, evidence and outstanding fabrication work.
 - `netlist.csv`: connection-level capture checklist for KiCad.
 - `check_capture.py`: terminal coverage and circuit-invariant checks.
 - `draw_schematic.py`: reproducible SVG generator.
 - `weact-module-mechanics.md`: source dimensions and orientation notes.
 - `../../../platformio-c6.ini`: C6 firmware build configuration.
+
+The XIAO symbol uses physical edge contact numbers 1-14 plus semantic underside
+contacts `BAT+` and `BAT-`. It is deliberately application-specific, including
+GPIO electrical directions. Its PCB footprint is NOT assigned: the eventual
+carrier must implement the underside wire lands separately or map to a verified
+module/contact footprint. J1, J2 and J3 likewise remain unassigned until the exact
+connectors and display cable are confirmed. All passives, Q1, JP1 and test points
+have nominal standard footprints, still subject to layout/assembly review.
+
+To repeat schematic validation without changing the capture:
+
+```sh
+python3 hardware/c6-carrier-rev-a/check_capture.py
+python3 hardware/c6-carrier-rev-a/check_kicad.py
+kicad-cli sch erc hardware/c6-carrier-rev-a/planter-c6-rev-a.kicad_sch \
+  --severity-all --exit-code-violations -o /tmp/planter-erc.rpt
+```
+
+`check_kicad.py` finds KiCad on PATH or at its standard macOS installation;
+`KICAD_CLI` can override that path. A clean ERC is schematic connectivity
+evidence, not proof of protection-board behaviour or PCB fabrication readiness.
 
 Build the shared v2 firmware for this carrier with:
 
