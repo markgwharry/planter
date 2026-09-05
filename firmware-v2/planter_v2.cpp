@@ -101,7 +101,7 @@
   #define EPD_SCLK     19   // D8, hardware SPI SCK
   #define EPD_MOSI     18   // D10, hardware SPI MOSI
   #define BATT_PIN      0   // D0/A0 → GPIO0 (ADC1_CH0)
-  #define BATT_DIV   2.0f   // 200k external top + 200k onboard bottom
+  #define BATT_DIV   2.0f   // two fitted external 200k resistors, top AND bottom
 #else
   // Original v2 XIAO ESP32-S3 proposal.
   #define MOISTURE_PIN  1   // D0/A0 → GPIO1 (ADC1)

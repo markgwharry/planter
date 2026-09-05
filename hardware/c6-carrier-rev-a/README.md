@@ -1,7 +1,8 @@
 # Planter XIAO ESP32-C6 carrier - Rev A
 
-Status: schematic-level design, ready for KiCad capture after the exact battery
-protection board and mechanical arrangement are photographed and measured.
+Status: reviewed electrical specification and circuit drawing (2026-09-05).
+KiCad schematic capture/ERC and PCB layout/DRC are still outstanding.
+See `review.md` for corrections and remaining physical decisions.
 
 This carrier replaces Dupont wiring while retaining the XIAO as the radio,
 charger, regulator and processor module. It does not reproduce the XIAO's USB,
@@ -10,11 +11,10 @@ charger or RF circuitry.
 ## Electrical architecture
 
 ```text
-1S cell B+/B- -> protection PCB -> protected P+/P-
-                                      |
-                                      +-> J1 -> JP1 -> XIAO BAT+/BAT-
-                                      |
-                                      +-> R2 200k -> D0/A0 battery ADC
+Protected P+ -> J1.1 -> JP1 -> PACK+ -> XIAO BAT+
+                               |
+                               +-> R2 200k -> A0 -> R3 200k -> GND
+Protected P- -> J1.2 -> GND -> XIAO BAT- and GND
 
 XIAO 3V3 -> Q1 AO3401A -> 3V3_SW -> moisture sensor + e-paper module
 ```
@@ -51,13 +51,15 @@ J1 accepts protected P+ and P-. JP1 is a normally-fitted removable link in the
 positive lead so complete-device sleep and wake current can be measured without
 cutting a trace.
 
-For the current XIAO ESP32-C6 revision, the carrier fits R2 = 200k from protected
-P+ to D0/A0. The XIAO schematic already has R10 = 200k from A0 to ground, giving
-a 1:2 divider. C1 = 100nF is fitted from A0 to ground at the XIAO.
+Fit BOTH R2 = 200k from PACK+ (after JP1) to D0/A0 and R3 = 200k from
+D0/A0 to GND. Fit C1 = 100nF from A0 to GND at the XIAO. The ADC sees
+half the pack voltage (2.1V at 4.2V); divider current is 10.5uA at full charge.
 
-R3 is a DNP 200k bottom-resistor footprint. It is populated only if continuity
-testing proves a future XIAO revision no longer contains the onboard 200k leg.
-Never populate R3 on the current revision: it would change the divider ratio.
+Correction to the initial proposal: Seeed's onboard R10 = 200k connects the
+charger IREF pin to ground, setting approximately 120mA charging current.
+It does NOT connect to A0. Omitting R3 would expose A0 to excessive voltage.
+This was verified visually on sheet 03 Power of the official 2026-01-14
+[XIAO schematic](https://files.seeedstudio.com/wiki/SeeedStudio-XIAO-ESP32C6/XIAO_ESP32_C6_v1.0_SCH_260114.pdf).
 
 ## Switched peripheral rail
 
@@ -67,6 +69,8 @@ Q1 is an AO3401A P-channel MOSFET:
 - drain: 3V3_SW;
 - gate: R4 1k from D2;
 - R1 100k from gate to 3V3, holding the rail off during reset and sleep.
+
+AO3401A SOT-23 pad mapping: 1 = gate, 2 = source, 3 = drain.
 
 C2 = 10uF and C3 = 100nF decouple 3V3_SW beside the display connector. The
 sensor and display are powered only while awake. Before Q1 is switched off,
@@ -88,8 +92,9 @@ sleep. Unlike the S3 build, it must not call the older global
 | 3 | GND |
 
 R5 = 1k sits between MOIST_OUT and D1/A1. C4 = 100nF from D1/A1 to ground is
-fitted beside the XIAO. An optional low-leakage ESD diode footprint may be added
-after the actual cable length and connector are known.
+fitted beside the XIAO. C5 = 100nF decouples J2.1 to GND beside J2.
+Sensor cable ESD protection is a pending part-selection decision; no unspecified
+diode is included in the capture BOM/netlist.
 
 ### J3 - WeAct 1.54-inch module, 2x4 at 2.54mm pitch
 
@@ -117,7 +122,7 @@ From the supplied WeAct board-shape PDF:
 - overall module envelope: 50.12 x 32.60mm;
 - mounting-hole centres: 44.52 x 27.00mm;
 - four mounting holes: 3.00mm diameter;
-- nominal corner radius: 1.50mm;
+- hole radius: 1.50mm (the drawing's R1.5 annotation points to a hole);
 - 2x4 signal header: 2.54mm pitch, on the left-hand side when viewed from the
   component face.
 
@@ -128,8 +133,10 @@ Use the supplied STEP model for enclosure clearance and connector orientation.
 - Use Seeed's official XIAO ESP32-C6 footprint and antenna keepout.
 - No copper, battery, display backplane or metal fastener beneath/in front of
   the XIAO antenna end.
-- The preferred field assembly solders the XIAO directly to the carrier and
-  intentionally reflows the underside BAT pads.
+- Resolve the XIAO underside BAT contact method before layout: the pads cannot
+  be assumed coplanar with the castellations. Verify the official footprint and
+  underside component clearance. Short strain-relieved soldered battery leads
+  are the practical hand-assembly baseline; direct reflow needs a verified stack.
 - Keep USB-C, BOOT and RESET reachable with the enclosure cover removed.
 - Put J1 and J2 on the downward/cable side; put J3 toward the display cavity.
 - Add labelled test points: PACK+, GND, 3V3, 3V3_SW, VBAT_ADC, MOIST_ADC,
@@ -156,10 +163,13 @@ Do not call the board field-ready until all of these pass:
 ## Files
 
 - `bom.csv`: initial electrical BOM and DNP/configuration parts.
-- `carrier-schematic.svg`: review drawing of the complete power and I/O path.
+- `carrier-schematic.svg`: component-level circuit drawing with named nets.
+- `review.md`: review findings, evidence and outstanding fabrication work.
 - `netlist.csv`: connection-level capture checklist for KiCad.
+- `check_capture.py`: terminal coverage and circuit-invariant checks.
+- `draw_schematic.py`: reproducible SVG generator.
 - `weact-module-mechanics.md`: source dimensions and orientation notes.
-- `../../platformio-c6.ini`: C6 firmware build configuration.
+- `../../../platformio-c6.ini`: C6 firmware build configuration.
 
 Build the shared v2 firmware for this carrier with:
 

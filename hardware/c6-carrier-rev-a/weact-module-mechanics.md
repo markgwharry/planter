@@ -18,14 +18,15 @@ orientation.
 | Horizontal hole-centre spacing | 44.52mm |
 | Vertical hole-centre spacing | 27.00mm |
 | Mounting-hole diameter | 3.00mm |
-| Corner radius | 1.50mm |
+| Mounting-hole radius | 1.50mm |
 | Header format | 2x4, 2.54mm pitch |
 
-The drawing also marks 3.60mm from each horizontal hole centre to its nearby
-nominal board datum and 1.93mm from the upper hole centre to the top datum. The
-outline includes narrowed/chamfered sections on the right-hand edge, so the STEP
-model remains the source for enclosure collision checking rather than replacing
-it with a simple 50.12 x 32.60mm rectangle.
+The 3.60mm annotations refer to the inset rectangular feature, and 1.93mm
+locates the header relative to the left board edge. They are not mounting-hole
+edge offsets. Symmetric hole offsets inferred from the overall and centre
+dimensions are (50.12-44.52)/2 = 2.80mm horizontally and
+(32.60-27.00)/2 = 2.80mm vertically. Confirm against STEP before modelling.
+The right-hand outline is narrowed/chamfered; use STEP for collision checks.
 
 ## Header order
 

@@ -3,16 +3,16 @@ U1,1,Seeed XIAO ESP32-C6,XIAO SMT module,Fitted,Use official footprint and anten
 Q1,1,AO3401A,SOT-23,Fitted,P-channel high-side switch
 R1,1,100k 1%,0603,Fitted,Q1 gate pull-up to 3V3
 R2,1,200k 1%,0603,Fitted,Protected PACK+ to VBAT_ADC
-R3,1,200k 1%,0603,DNP,Only for a future XIAO without onboard A0 pull-down
+R3,1,200k 1%,0603,Fitted,Mandatory VBAT_ADC to GND; no onboard divider resistor
 R4,1,1k 1%,0603,Fitted,D2 to Q1 gate
 R5,1,1k 1%,0603,Fitted,Moisture analogue series resistor
 C1,1,100nF 10V X7R,0603,Fitted,VBAT_ADC filter at U1
 C2,1,10uF 10V X5R,0805,Fitted,3V3_SW bulk decoupling at J3
 C3,1,100nF 10V X7R,0603,Fitted,3V3_SW high-frequency decoupling at J3
 C4,1,100nF 10V X7R,0603,Fitted,MOIST_ADC filter at U1
+C5,1,100nF 10V X7R,0603,Fitted,3V3_SW decoupling at J2
 J1,1,Keyed battery connector 2-way,TBD,Fitted,Pin 1 P+; pin 2 P-; match protected pack
 J2,1,Keyed moisture connector 3-way,TBD,Fitted,Pin 1 3V3_SW; 2 AOUT; 3 GND
 J3,1,2x4 shrouded header 2.54mm,TH 2x4,Fitted,Pinout matches supplied WeAct module
 JP1,1,2-pin removable current link,2.54mm TH,Fitted,Normally shorted; series with P+
-D1,1,Low-leakage 3.3V ESD diode,SOD-323,DNP,Populate after sensor cable is selected
 TP1-TP10,10,Test point,1.5mm SMD,Fitted,See README layout requirements
