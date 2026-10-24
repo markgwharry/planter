@@ -78,15 +78,15 @@ def prop(name, value, x, y, hide=False, justify='', angle=0):
 
 
 def xiao_symbol():
-    # Pads 1-14 are the castellations; 23/24 are the underside BAT+/BAT- pads,
-    # numbered as in Seeed's XIAO-ESP32-S3-SMD footprint.
+    # Pads 1-14 are the castellations; 23 is the underside BAT+ pad, numbered as
+    # in Seeed's XIAO-ESP32-S3-SMD footprint. The underside BAT- pad (24) is
+    # module GND, already reached through pad 13, so it has no pin here.
     left = [('1', 'D0/A0 IO1', 'bidirectional'), ('2', 'D1 IO2', 'output'),
             ('3', 'D2/A2 IO3', 'input'), ('4', 'D3/A3 IO4', 'input'),
             ('5', 'D4 IO5', 'input'), ('6', 'D5 IO6', 'output'),
             ('7', 'D6/TX IO43', 'bidirectional'), ('8', 'D7/RX IO44', 'output')]
     right = [('14', '5V/VBUS', 'power_in'), ('13', 'GND', 'power_in'),
-             ('12', '3V3_OUT', 'power_out'), ('24', 'BAT-', 'power_in'),
-             ('23', 'BAT+', 'power_in'), ('9', 'D8 IO7', 'output'),
+             ('12', '3V3_OUT', 'power_out'), ('23', 'BAT+', 'power_in'), ('9', 'D8 IO7', 'output'),
              ('10', 'D9 IO8', 'output'), ('11', 'D10 IO9', 'output')]
     parts = ['(symbol "XIAO_ESP32S3_Carrier" (pin_names (offset 1.27)) '
              '(in_bom yes) (on_board yes)', prop('Reference', 'U', 0, 34.29),
@@ -206,7 +206,7 @@ def main():
         add(f'TP{i}', 'TestPoint', f'TP{i}', x, 226.06,
             footprint='TestPoint:TestPoint_Pad_D1.5mm', field=(x,216.535))
     # The checked CSV remains an independent logical pin naming scheme.
-    mapping = {'GND':'13', '3V3':'12', 'VBUS':'14', 'BAT+':'23', 'BAT-':'24',
+    mapping = {'GND':'13', '3V3':'12', 'VBUS':'14', 'BAT+':'23',
                **{f'D{i}':str(i+1) for i in range(0,11)}}
     def physical(logical):
         if logical.startswith('U1.'):
@@ -272,7 +272,8 @@ def main():
     text('04  XIAO ESP32-S3 (SOLDERED FLAT ON ITS CASTELLATIONS)',213,30,2)
     text('Captured by pad label; S3 GPIO shown on each pin.\n'
          'VBUS NC: the XIAO USB-C is the only charger.\n'
-         'BAT+/BAT-: the XIAO underside pads, on plated pads soldered from the back.\n'
+         'BAT+: the XIAO underside pad, on a plated pad soldered from the back.\n'
+         'BAT- is not used: it is module GND, returned through the GND castellation.\n'
          'D6 = UART0 TX (ROM boot log): left unconnected. D0 spare.\n'
          'Land pattern is the plain XIAO ESP32-S3 (the Plus has more pads).',213,112)
     text('05  PROBE / FILTER',213,127,2)

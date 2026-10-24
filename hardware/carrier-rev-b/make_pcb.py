@@ -60,10 +60,11 @@ def write_xiao_footprint():
     library), rotated 180 deg so USB-C points at the board's bottom edge:
     14 castellation pads 2.75 x 2.0 mm on 16.165 mm row centres, 2.54 pitch.
     Pad numbers match the castellations: 1-7 = D0-D6, 8-11 = D7-D10, 12 3V3,
-    13 GND, 14 5V. Pads 23/24 are the module's underside BAT+/BAT- contacts.
-    They are plated through so they can be soldered from the back of the
-    carrier with an iron, or reflowed with the rest. The S3's other underside
-    pads (JTAG, EN, USB, the large centre pad) get no copper here.
+    13 GND, 14 5V. Pad 23 is the module's underside BAT+ contact, plated
+    through so it can be soldered from the back of the carrier with an iron.
+    The module's BAT- pad is its own GND, returned through pad 13, so it gets
+    no copper: that leaves no hidden joint that could short the battery. Nor
+    do the S3's other underside pads (JTAG, EN, USB, the large centre pad).
     """
     hw, hh = XIAO_BODY
     pads = [(n, 8.0825, 7.62 - (n - 1) * 2.54) for n in range(1, 8)]
@@ -71,7 +72,7 @@ def write_xiao_footprint():
     lines = ['(footprint "Seeed_XIAO_ESP32S3_SMD" (version 20241229) (generator "planter_capture")',
              '  (layer "F.Cu")',
              '  (descr "Seeed XIAO ESP32-S3 surface-mounted by castellations, '
-             'underside BAT pads plated through for hand soldering, USB-C toward +y")',
+             'underside BAT+ pad plated through for hand soldering, USB-C toward +y")',
              '  (attr smd)',
              '  (property "Reference" "U**" (at 0 -1.5 0) (layer "F.SilkS") (effects (font (size 0.8 0.8) (thickness 0.12))))',
              '  (property "Value" "XIAO" (at 0 1.5 0) (layer "F.Fab") (effects (font (size 0.8 0.8) (thickness 0.12))))']
@@ -90,11 +91,9 @@ def write_xiao_footprint():
     for text, y in (('USB', 9.3),):
         lines.append(f'  (fp_text user "{text}" (at 0 {y} 0) (layer "F.SilkS") (effects (font (size 0.8 0.8) (thickness 0.12))))')
     lines.append('  (fp_text user "BAT+" (at 4.47 -0.75 0) (layer "F.Fab") (effects (font (size 0.5 0.5) (thickness 0.08))))')
-    lines.append('  (fp_text user "BAT-" (at 4.47 4.1 0) (layer "F.Fab") (effects (font (size 0.5 0.5) (thickness 0.08))))')
     for n, x, y in pads:
         lines.append(f'  (pad "{n}" smd roundrect (at {x} {y}) (size 2.75 2.0) (layers "F.Cu" "F.Paste" "F.Mask") (roundrect_rratio 0.25))')
-    for n, y in (('23', 0.382), ('24', 2.287)):
-        lines.append(f'  (pad "{n}" thru_hole roundrect (at 4.4725 {y}) (size 2.5 1.25) (drill 0.7) (layers "*.Cu" "*.Mask") (roundrect_rratio 0.25))')
+    lines.append('  (pad "23" thru_hole roundrect (at 4.4725 0.382) (size 2.5 1.25) (drill 0.7) (layers "*.Cu" "*.Mask") (roundrect_rratio 0.25))')
     lines.append(')')
     lib = ROOT / 'Planter.pretty'
     lib.mkdir(exist_ok=True)
@@ -422,8 +421,7 @@ def silk(board):
     text('WEACT 1.54 BELOW', 14.0, 7.5, 1.0, layer=pcbnew.B_SilkS)
     text('J3 PIN 1', 4.6, 10.3, layer=pcbnew.B_SilkS)
     text('BAT+', 17.6, 21.06, layer=pcbnew.B_SilkS)
-    text('BAT-', 17.6, 22.97, layer=pcbnew.B_SilkS)
-    text('SOLDER FROM HERE', 21.0, 25.2, layer=pcbnew.B_SilkS)
+    text('SOLDER FROM HERE', 21.0, 23.0, layer=pcbnew.B_SilkS)
 
 if __name__ == '__main__':
     build()

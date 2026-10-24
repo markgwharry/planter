@@ -3,8 +3,8 @@
 Rev A's circuit turned into a 2-layer PCB that sits directly behind the WeAct
 1.54-inch e-paper module. It carries a Seeed **XIAO ESP32-S3**, **soldered
 flat** by its castellations. The land pattern is the plain S3's: the S3 Plus
-has more pads and won't fit. The module's underside BAT+/BAT- pads land on
-plated pads on the carrier, so the battery needs no flying leads.
+has more pads and won't fit. The module's underside BAT+ pad lands on a plated
+pad on the carrier, so the battery needs no flying leads.
 
 Status (2026-10-24): schematic and layout regenerated for the S3 and checked.
 ERC clean, DRC clean with **zero** violations, schematic parity clean, 0
@@ -21,7 +21,7 @@ gates below.
 |---|---|---|---|
 | Module | XIAO ESP32-C6 | **XIAO ESP32-S3 only** | One chip, so the board can use its exact land pattern and underside pads. |
 | XIAO mounting | Soldered | **Surface-mounted on its castellations** | Seeed's own XIAO-ESP32-S3-SMD land pattern. Nothing sits under the module. |
-| Battery to XIAO | Wires | **Plated BAT+/BAT- pads under U1** | They meet the module's underside pads. Solder from the back through the plated holes, or reflow. |
+| Battery to XIAO | Wires | **Plated BAT+ pad under U1** | It meets the module's underside BAT+ pad; solder it from the back through the plated hole. The return is the GND castellation: the module's BAT- pad is its own GND, so it gets no copper. |
 | Pin map | By C6 GPIO | **Rearranged for the S3 layout** | The display takes the four left-row pins beside its header. D6 (UART0 TX) is left unconnected: the ROM log drives it on every wake. |
 | Antenna | C6 ceramic | **S3 U.FL + external antenna** | No copper keep-out is needed, which frees the band above the module for the switch. |
 | Test points | 10 | **3** (PACK+, GND, 3V3_SW) | Every other net is on a XIAO castellation, which you can probe at the module's edge. |
@@ -48,7 +48,7 @@ switch with 100k pull-up and 1k gate resistor, 1k + 100 nF on the probe input,
 | D9 | EPD_SCLK | 8 | SPI goes through the GPIO matrix. The firmware passes the pins to `SPI.begin`. |
 | D10 | EPD_MOSI | 9 | |
 | BAT+ (underside) | PACK+ | | Plated pad, after JP1. |
-| BAT- (underside) | GND | | Plated pad. Also tied by the GND castellation. |
+| BAT- (underside) | not connected | | Module GND, the same net as the GND castellation. It sits on solder mask, so there is no second hidden joint to short the cell. |
 
 ## Assembly
 
@@ -56,15 +56,18 @@ switch with 100k pull-up and 1k gate resistor, 1k + 100 nF on the probe input,
 2. XIAO: line the castellations up with the pads, with USB-C at the board edge
    (pin 1 dot at D0, bottom right). Tack two opposite corners, check alignment,
    then solder all 14 castellations.
-3. Turn the board over. Solder BAT+ then BAT- through their plated holes,
-   marked on the back silk. Hold the iron on the back pad and feed solder until
-   it wicks up to the module's pad. BAT- connects to the planes, so give it more
-   heat. With paste and a hot plate or hot air, the two pads reflow with the
-   castellations instead.
+3. Turn the board over. Solder BAT+ through its plated hole, marked on the back
+   silk. Hold the iron on the back pad and feed a little solder until it wicks
+   up to the module's pad. Do this with an iron even if the castellations were
+   reflowed: the pad is plated through, so a stencil puts no paste on it.
 4. Through-hole parts last: JP1, the JSTs, and J3 on the underside.
 
-Check with a meter before connecting a cell: carrier BAT+ to the module's BAT+
-side, and BAT- to GND.
+Check with a meter before connecting a cell:
+
+- TP1 (PACK+) to GND must not read near 0 Ω. A low reading is a short at the
+  hidden BAT+ joint.
+- With a cell on J1 and USB unplugged, the XIAO runs. With USB plugged in, the
+  cell charges. Both prove the BAT+ joint, which you can't see.
 
 ## Mechanical stack
 
@@ -115,7 +118,7 @@ Both generators are reproducible baselines. If you edit in the KiCad GUI,
 commit before re-running them.
 
 The fab zip holds two drill files: `-PTH.drl` (plated holes:
-BAT pads, JP1, the JSTs, J3) and `-NPTH.drl` (the M2.5 holes). A Gerber viewer
+the BAT+ pad, JP1, the JSTs, J3) and `-NPTH.drl` (the M2.5 holes). A Gerber viewer
 shows plated pads as solid copper unless it loads the PTH file.
 
 ## Firmware
@@ -136,9 +139,10 @@ Carried over from Rev A, plus Rev B items:
 
 1. Before ordering: print the top copper and silk 1:1. Lay a real XIAO
    ESP32-S3 on it and check that the castellations and the module's underside
-   BAT+/BAT- pads land on their pads. The BAT pad position comes from Seeed's
-   library and is not measured. Lay the print over a real WeAct module and
-   check the holes, the J3 pin 1 position and the FPC recess.
+   BAT+ pad land on their pads. The BAT+ position comes from Seeed's library
+   (both of its S3 footprints agree) and is not measured. On the module, check
+   that its BAT- pad reads 0 Ω to its GND pin. Lay the print over a real WeAct
+   module and check the holes, the J3 pin 1 position and the FPC recess.
 2. Check every battery pigtail's polarity against J1 (pin 1 = P+).
 3. With USB removed: D3 reads half of PACK+ within resistor tolerance.
    Firmware battery voltage agrees with a DMM within 50 mV after `BATT_TRIM`.
