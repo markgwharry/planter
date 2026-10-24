@@ -8,8 +8,8 @@
 //  This source now supports both the original v2 XIAO ESP32-S3 proposal and the
 //  Rev A XIAO ESP32-C6 carrier. Build the C6 variant with platformio-c6.ini;
 //  PLANTER_XIAO_C6 is set there and selects the C6 carrier pin map below.
-//  The Rev B PCB (hardware/carrier-rev-b) takes either chip: platformio-rev-b.ini
-//  sets PLANTER_CARRIER_REV_B, plus PLANTER_XIAO_C6 for the C6 env.
+//  The Rev B PCB (hardware/carrier-rev-b) is XIAO ESP32-S3 only, soldered flat:
+//  platformio-rev-b.ini sets PLANTER_CARRIER_REV_B.
 //
 //  To build: this file replaces src/main.cpp for v2 hardware. Either move it to
 //  src/ (and move the v1 main.cpp out of src/ so PlatformIO doesn't compile two
@@ -94,20 +94,23 @@
 // Both carriers use one active-low high-side P-FET for 3V3_SW. The C6 map is
 // deliberately expressed as GPIO numbers, matching Arduino's XIAO C6 variant.
 #if defined(PLANTER_CARRIER_REV_B)
-  // Rev B PCB carrier (hardware/carrier-rev-b). Routed by XIAO pad label, so
-  // the same map serves a socketed C6 or S3: Arduino's XIAO variants resolve
-  // D0..D10 to the right GPIO for each chip. Same as Rev A except BUSY moved
-  // D6 → D7: D6 is UART0 TX on both chips and the ROM boot log would drive it
-  // into the unpowered panel's BUSY pin on every wake.
-  #define MOISTURE_PIN  D1  // A1 — C6 GPIO1 / S3 GPIO2
-  #define PERIPH_EN     D2  // LOW = 3V3_SW ON
-  #define EPD_CS        D3
-  #define EPD_DC        D4
-  #define EPD_RST       D5
-  #define EPD_BUSY      D7  // UART0 RX: an input from reset, never driven
-  #define EPD_SCLK      D8  // hardware SPI SCK on both chips
-  #define EPD_MOSI      D10 // hardware SPI MOSI on both chips
-  #define BATT_PIN      D0  // A0 — C6 GPIO0 / S3 GPIO1
+  #if defined(PLANTER_XIAO_C6)
+    #error "Rev B carrier is XIAO ESP32-S3 only"
+  #endif
+  // Rev B PCB carrier (hardware/carrier-rev-b): XIAO ESP32-S3 soldered flat on
+  // its castellations. The map follows the board layout, not Rev A: the display
+  // takes the four left-row pins beside its header, the rest are on the right.
+  // D6 (UART0 TX) is left unconnected so the ROM boot log drives nothing, and
+  // DC sits on D7 (RX), an input from reset. Any S3 GPIO can carry SPI.
+  #define MOISTURE_PIN  D2  // GPIO3, ADC1_CH2
+  #define PERIPH_EN     D1  // GPIO2; LOW = 3V3_SW ON
+  #define EPD_CS        D8  // GPIO7
+  #define EPD_DC        D7  // GPIO44 (UART0 RX)
+  #define EPD_RST       D5  // GPIO6
+  #define EPD_BUSY      D4  // GPIO5
+  #define EPD_SCLK      D9  // GPIO8
+  #define EPD_MOSI      D10 // GPIO9
+  #define BATT_PIN      D3  // GPIO4, ADC1_CH3
   #define BATT_DIV    2.0f  // two fitted external 200k resistors, top AND bottom
 #elif defined(PLANTER_XIAO_C6)
   #define MOISTURE_PIN  1   // D1/A1 → GPIO1 (ADC1_CH1)
@@ -137,7 +140,7 @@
 // ── Calibration ──────────────────────────────────────────────────
 // Relative air/water wetness scale, not volumetric soil-water content.
 // Recalibrate for a different probe, power arrangement or ADC configuration.
-#if defined(PLANTER_CARRIER_REV_B) && !defined(PLANTER_XIAO_C6)
+#if defined(PLANTER_CARRIER_REV_B)
   // Rev B S3 not yet calibrated. These are the C6 P1 switched-rail endpoints,
   // used as placeholders only: they are raw counts and the S3 ADC differs.
   // Recalibrate on first article.
@@ -262,8 +265,8 @@ void disablePeripheralRail() {
     // shoot-through. (Beyond the §4 list, but closes a real µA leak.)
     pinMode(EPD_BUSY, INPUT_PULLDOWN);
 
-    // Gate the rail OFF. R1 also holds this HIGH once GPIO6 floats in sleep,
-    // so GPIO6 itself is deliberately NOT hold-latched.
+    // Gate the rail OFF. R1 also holds this HIGH once PERIPH_EN floats in sleep,
+    // so PERIPH_EN itself is deliberately NOT hold-latched.
     digitalWrite(PERIPH_EN, HIGH);
 
     // Latch the parked levels so they survive deep sleep.
