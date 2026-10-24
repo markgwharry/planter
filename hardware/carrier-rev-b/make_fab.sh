@@ -3,6 +3,7 @@
 set -e
 cd "$(dirname "$0")"
 CLI=/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli
+[ -x "$CLI" ] || CLI=kicad-cli
 B=planter-carrier-rev-b
 OUT=build/fab
 rm -rf "$OUT"; mkdir -p "$OUT/gerbers"
