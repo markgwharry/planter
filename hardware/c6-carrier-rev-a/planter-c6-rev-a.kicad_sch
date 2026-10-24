@@ -1,5 +1,5 @@
 (kicad_sch (version 20250114) (generator "planter_capture") (uuid "d19bd8d9-7c3e-5952-8d9a-50e979e5a710") (paper "A3")
-(title_block (title "Planter XIAO ESP32-C6 carrier") (date "2026-09-05") (rev "A") (comment 1 "External protected 1S pack; not fabrication-ready"))
+(title_block (title "Planter XIAO ESP32-C6 carrier / perfboard P1") (date "2026-09-09") (rev "A-P1") (comment 1 "Perfboard guide reconciled; not fabrication-ready"))
 (lib_symbols
 (symbol "Planter:R"
 		(pin_numbers
@@ -1880,8 +1880,8 @@
 (text "VBUS intentionally NC. USB-C on XIAO is the only charger.\nBAT+/-: short strain-relieved underside wires for prototype.\nModule footprint and antenna keepout must be verified before layout." (at 213 112 0) (effects (font (size 1.5 1.5)) (justify left top)) (uuid "f2cbfa02-56fd-5d63-8d0e-8970767bc4cc"))
 (text "05  PROBE / FILTER" (at 213 127 0) (effects (font (size 2 2)) (justify left top)) (uuid "fbb3b180-93b1-5c11-9dfa-37a2d6001507"))
 (text "06  DISPLAY / LOCAL BYPASS" (at 327 127 0) (effects (font (size 2 2)) (justify left top)) (uuid "fcc56495-4103-5474-8eec-412ee95b57f6"))
-(text "J2 keyed part TBD. C4 at U1; C5 at J2.\nJ3 odd/even pinout from WeAct drawing; cable orientation TBD." (at 213 202 0) (effects (font (size 1.5 1.5)) (justify left top)) (uuid "1f7f8187-a700-57f0-9a48-8847b821909c"))
+(text "J2: perfboard B06 VCC, B05 AOUT, B04 GND.\nJ3 pins 1-8: perfboard B15 down to B08; WeAct B&W tested." (at 213 202 0) (effects (font (size 1.5 1.5)) (justify left top)) (uuid "1f7f8187-a700-57f0-9a48-8847b821909c"))
 (text "07  TEST POINTS" (at 20 212 0) (effects (font (size 2 2)) (justify left top)) (uuid "72fa816b-f8de-5437-83ae-c891e52c2dac"))
 (text "PROTOTYPE CAPTURE - NOT A FABRICATION RELEASE" (at 20 243 0) (effects (font (size 2 2)) (justify left top)) (uuid "f8dd35b5-d438-5451-ada9-3cfafc2f47ad"))
-(text "No on-carrier lithium protection or duplicate charger. Identify and insulate the external protection board.\nJ1/J2/J3 and U1 footprints are intentionally unassigned pending exact parts and mechanical checks.\nConfirm actual display controller, cable ESD requirements, enclosure clearances and charging access.\nBefore field use: polarity/continuity, ADC calibration, rail-off leakage, USB charging and 24-hour bench soak." (at 20 251 0) (effects (font (size 1.5 1.5)) (justify left top)) (uuid "66a77651-a097-529e-87a7-a59fc708e264"))
+(text "P1 guide: 50 x 70mm perfboard, A-R / 01-24. JP1 = O01-O02 (letter O); TP1 PACK+ = K03; TP2 GND = K07.\nBattery-only check: display 3.81V / meter 3.83V. Air/water endpoints and WeAct 1.54-inch B&W refresh tested.\nSleep current, protection specifications, USB charge behaviour and outdoor endurance remain unverified.\nRetain external 1S protection; never join B- to GND. U1/J1/J2/J3 footprints and PCB layout remain pending." (at 20 251 0) (effects (font (size 1.5 1.5)) (justify left top)) (uuid "66a77651-a097-529e-87a7-a59fc708e264"))
 (sheet_instances (path "/" (page "1"))))

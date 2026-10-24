@@ -1,5 +1,23 @@
 # Planter XIAO ESP32-C6 carrier - Rev A
 
+## Perfboard P1 reconciliation - 2026-09-09
+
+The native schematic is now annotated as A-P1 against the 50 x 70mm
+A-R / 01-24 perfboard guide. Electrical wiring and component values are
+unchanged: the guide connectivity and exported KiCad connectivity agree.
+This is a guide-matched circuit, not a physical inspection of every solder joint
+or fitted component tolerance. Through-hole perfboard parts implement the same
+circuit; assigned SMD footprints are provisional for a future carrier.
+
+The schematic now labels the perfboard sensor/display terminals, JP1 and
+PACK+/GND measurement pads. The user's bench observations confirm WeAct 1.54-inch
+B&W refresh, air/water endpoints, and battery-only voltage agreement
+(screen 3.81V; meter 3.83V). Sleep current remains unmeasured; charging,
+protection specifications and outdoor endurance are not verified.
+
+Open `planter-c6-rev-a.kicad_pro`, then the schematic editor.
+PCB layout and final module/connector footprints remain outside this revision.
+
 Status: native KiCad 10 schematic captured and checked (2026-09-05).
 ERC: zero errors/warnings. Exported connectivity: all 64 terminals match the
 reviewed checklist. PCB layout/DRC and physical verification remain outstanding.

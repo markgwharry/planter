@@ -264,22 +264,22 @@ def main():
          'Module footprint and antenna keepout must be verified before layout.',213,112)
     text('05  PROBE / FILTER',213,127,2)
     text('06  DISPLAY / LOCAL BYPASS',327,127,2)
-    text('J2 keyed part TBD. C4 at U1; C5 at J2.\n'
-         'J3 odd/even pinout from WeAct drawing; cable orientation TBD.',213,202)
+    text('J2: perfboard B06 VCC, B05 AOUT, B04 GND.\n'
+         'J3 pins 1-8: perfboard B15 down to B08; WeAct B&W tested.',213,202)
     text('07  TEST POINTS',20,212,2)
     text('PROTOTYPE CAPTURE - NOT A FABRICATION RELEASE',20,243,2)
-    text('No on-carrier lithium protection or duplicate charger. Identify and insulate the external protection board.\n'
-         'J1/J2/J3 and U1 footprints are intentionally unassigned pending exact parts and mechanical checks.\n'
-         'Confirm actual display controller, cable ESD requirements, enclosure clearances and charging access.\n'
-         'Before field use: polarity/continuity, ADC calibration, rail-off leakage, USB charging and 24-hour bench soak.',20,251)
+    text('P1 guide: 50 x 70mm perfboard, A-R / 01-24. JP1 = O01-O02 (letter O); TP1 PACK+ = K03; TP2 GND = K07.\n'
+         'Battery-only check: display 3.81V / meter 3.83V. Air/water endpoints and WeAct 1.54-inch B&W refresh tested.\n'
+         'Sleep current, protection specifications, USB charge behaviour and outdoor endurance remain unverified.\n'
+         'Retain external 1S protection; never join B- to GND. U1/J1/J2/J3 footprints and PCB layout remain pending.',20,251)
     library = '(kicad_symbol_lib (version 20250114) (generator "planter_capture")\n' + '\n'.join(SOURCES.values()) + ')\n'
     (ROOT/'Planter.kicad_sym').write_text(library)
     embedded = '\n'.join(raw.replace(f'(symbol "{name}"',f'(symbol "Planter:{name}"',1)
                          for name,raw in SOURCES.items())
     schematic = f'(kicad_sch (version 20250114) (generator "planter_capture") '
     schematic += f'(uuid "{uid("root")}") (paper "A3")\n'
-    schematic += '(title_block (title "Planter XIAO ESP32-C6 carrier") (date "2026-09-05") '
-    schematic += '(rev "A") (comment 1 "External protected 1S pack; not fabrication-ready"))\n'
+    schematic += '(title_block (title "Planter XIAO ESP32-C6 carrier / perfboard P1") (date "2026-09-09") '
+    schematic += '(rev "A-P1") (comment 1 "Perfboard guide reconciled; not fabrication-ready"))\n'
     schematic += '(lib_symbols\n' + embedded + ')\n' + '\n'.join(ITEMS)
     schematic += '\n(sheet_instances (path "/" (page "1"))))\n'
     (ROOT/f'{PROJECT}.kicad_sch').write_text(schematic)
