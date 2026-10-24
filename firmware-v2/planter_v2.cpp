@@ -514,10 +514,13 @@ void setup() {
     // Conservation state machine (hysteresis; brownout already latched above).
     // A floating/unwired sense pin (!battValid) never *enters* conservation on
     // voltage — only a real brownout can — so the board is safe to run before
-    // the divider is confirmed.
+    // the divider is confirmed. Never *exit* on a brownout boot: the cell has
+    // already bounced back open-circuit, so the reading would undo the latch
+    // and the heartbeat (wakeCount reset to 0) would key WiFi straight back up.
+    // Recovery waits for the next conservation wake.
     if (battValid) {
         if (conserving) {
-            if (batt >= BATT_RESUME) conserving = false;   // recovered
+            if (batt >= BATT_RESUME && !brownoutReset) conserving = false;   // recovered
         } else {
             if (batt <= BATT_CONSERVE) conserving = true;  // sagged
         }
