@@ -117,13 +117,20 @@
 #endif
 
 // ── Calibration ──────────────────────────────────────────────────
-// ⚠ v2 RECAL REQUIRED. On v1 the sensor was fed from a GPIO output (~40 Ω Rout,
-// so VCC sat ~200 mV below 3V3 at ~5 mA). On v2 it gets the full rail through Q1
-// (~mΩ), so VCC is ~200 mV HIGHER. The sensor is ratiometric, so both endpoints
-// shift up together. These v1 numbers WILL read ~6% off until re-measured with
-// DEBUG_MODE on a v2 board (raw in dry air → DRY, raw submerged → WET).
-#define MOISTURE_DRY  3160  // raw ADC bone-dry → 0%   (RE-MEASURE on v2)
-#define MOISTURE_WET  1300  // raw ADC submerged → 100% (RE-MEASURE on v2)
+// Relative air/water wetness scale, not volumetric soil-water content.
+// Recalibrate for a different probe, power arrangement or ADC configuration.
+#if defined(PLANTER_XIAO_C6)
+  // This perfboard prototype, USB-powered, 2026-09-09: ten readings per endpoint.
+  // Dry 2660-2661 (median 2660.5); wet sensing section 1183-1186 (median 1185).
+  // See hardware/c6-carrier-rev-a/perfboard-calibration-2026-09-09.md.
+  #define MOISTURE_DRY  2661
+  #define MOISTURE_WET  1185
+#else
+  // Legacy S3 values preserved. A v2 switched-rail S3 still needs fresh readings;
+  // these originated on the GPIO-powered v1 arrangement.
+  #define MOISTURE_DRY  3160
+  #define MOISTURE_WET  1300
+#endif
 
 // ── Sleep ────────────────────────────────────────────────────────
 #define SLEEP_MINUTES          30    // normal duty cycle
