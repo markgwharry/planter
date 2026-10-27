@@ -6,6 +6,10 @@ Differences from Rev A: BUSY on D7 (not D6), battery reaches the XIAO's
 underside BAT pads through wire pads J4, and TPs only on nets the XIAO's own
 castellations don't already expose.
 
+Rev B adds on-board 1S protection (DW01A + FS8205A) in the cell negative, so
+J1 takes a bare or a protected cell. Charging stays with the XIAO's own
+charger through J4. Every fitted part carries an LCSC number for JLCPCB.
+
 The checked-in schematic is editable normally in KiCad; this generator is a
 reproducible capture baseline, not a round-trip editor. Do not rerun over GUI
 edits without committing them first. make_pcb.py builds the board from it.
@@ -100,12 +104,33 @@ def xiao_symbol():
     return '\n'.join(parts) + '))'
 
 
+def fs8205a_symbol():
+    # Tech Public FS8205A in SOT-23-6 (LCSC C2830320), pinout from its datasheet:
+    # 1 S1, 2 D, 3 S2, 4 G2, 5 D, 6 G1. The two D pins are the common drain.
+    # Gates on top so the DW01A's OD/OC outputs wire straight down to them.
+    pins = [('6', 'G1', -2.54, 7.62, 270), ('4', 'G2', 2.54, 7.62, 270),
+            ('1', 'S1', -10.16, -2.54, 0), ('2', 'D', -10.16, 2.54, 0),
+            ('3', 'S2', 10.16, -2.54, 180), ('5', 'D', 10.16, 2.54, 180)]
+    parts = ['(symbol "FS8205A_SOT23-6" (pin_names (offset 0.762)) '
+             '(in_bom yes) (on_board yes)', prop('Reference', 'Q', 0, -7.62),
+             prop('Value', 'FS8205A_SOT23-6', 0, -10.16),
+             '(symbol "FS8205A_SOT23-6_0_1" (rectangle '
+             '(start -7.62 5.08) (end 7.62 -5.08) '
+             '(stroke (width 0.254) (type default)) (fill (type background))))',
+             '(symbol "FS8205A_SOT23-6_1_1"']
+    for number, name, x, y, angle in pins:
+        parts.append(f'(pin passive line (at {x} {y} {angle}) (length 2.54) '
+                     f'(name {quote(name)} {effects()}) (number {quote(number)} {effects()}))')
+    return '\n'.join(parts) + '))'
+
+
 SOURCES = {name: symbol_source(lib, name) for lib, name in [
     ('Device', 'R'), ('Device', 'C'), ('Transistor_FET', 'Q_PMOS_GSD'),
     ('Connector_Generic', 'Conn_01x02'), ('Connector_Generic', 'Conn_01x03'),
     ('Connector_Generic', 'Conn_02x04_Odd_Even'), ('Connector', 'TestPoint'),
-    ('power', 'PWR_FLAG')]}
+    ('power', 'PWR_FLAG'), ('Battery_Management', 'DW01A')]}
 SOURCES['XIAO_C6_S3_Carrier'] = xiao_symbol()
+SOURCES['FS8205A_SOT23-6'] = fs8205a_symbol()
 ITEMS, POS = [], {}
 
 
@@ -113,7 +138,7 @@ def grid(n):
     return round(round(n / 1.27) * 1.27, 2)
 
 
-def add(ref, kind, value, x, y, angle=0, footprint='', field=None):
+def add(ref, kind, value, x, y, angle=0, footprint='', field=None, lcsc=''):
     x, y = grid(x), grid(y)
     raw = SOURCES[kind]
     tree = parse(raw)
@@ -138,6 +163,7 @@ def add(ref, kind, value, x, y, angle=0, footprint='', field=None):
                  prop('Reference', ref, fx, fy, hide=ref.startswith('#'), angle=angle % 180) + '\n' +
                  prop('Value', value, fx, fy + 2.54, hide=ref.startswith(('#','TP')), angle=angle % 180) + '\n' +
                  prop('Footprint', footprint, x, y, hide=True) + '\n' +
+                 (prop('LCSC', lcsc, x, y, hide=True) + '\n' if lcsc else '') +
                  '\n'.join(pins) + f'\n(instances (project "{PROJECT}" '
                  f'(path "/{uid("root")}" (reference {quote(ref)}) (unit 1)))))')
 
@@ -174,31 +200,45 @@ def main():
     resistor = 'Resistor_SMD:R_0603_1608Metric'
     capacitor = 'Capacitor_SMD:C_0603_1608Metric'
     header2 = 'Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical'
-    add('J1', 'Conn_01x02', 'PROTECTED BATTERY', 50.8, 50.8,
-        footprint='Connector_JST:JST_PH_S2B-PH-K_1x02_P2.00mm_Horizontal')
+    sot236 = 'Package_TO_SOT_SMD:SOT-23-6'
+    # LCSC numbers (JLCPCB Basic unless noted). Headers, sockets, the XIAO and
+    # test points have none: they are hand-fitted or bare pads.
+    C100N, R1K = 'C14663', 'C21190'
+    add('J1', 'Conn_01x02', 'BATTERY CELL', 50.8, 50.8,
+        footprint='Connector_JST:JST_PH_S2B-PH-K_1x02_P2.00mm_Horizontal', lcsc='C173752')
     add('JP1', 'Conn_01x02', 'CURRENT LINK', 121.92, 50.8, footprint=header2)
     add('J4', 'Conn_01x02', 'XIAO BAT LEADS', 190.5, 50.8, footprint=header2)
     add('#FLG01', 'PWR_FLAG', 'PWR_FLAG', 173.99, 40.64)
     add('#FLG02', 'PWR_FLAG', 'PWR_FLAG', 173.99, 69.85)
     add('U1', 'XIAO_C6_S3_Carrier', 'Seeed XIAO ESP32-C6 or ESP32-S3', 304.8, 76.2,
         footprint='Planter:Seeed_XIAO_Socketed_2x7_P2.54mm')
-    add('R2', 'R', '200k 1%', 45.72, 109.22, footprint=resistor, field=(57.15,106.68))
-    add('R3', 'R', '200k 1%', 45.72, 134.62, footprint=resistor, field=(57.15,132.08))
-    add('C1', 'C', '100nF', 86.36, 134.62, footprint=capacitor, field=(96.52,132.08))
+    add('R2', 'R', '200k 1%', 45.72, 109.22, footprint=resistor, field=(57.15,106.68), lcsc='C25811')
+    add('R3', 'R', '200k 1%', 45.72, 134.62, footprint=resistor, field=(57.15,132.08), lcsc='C25811')
+    add('C1', 'C', '100nF', 86.36, 134.62, footprint=capacitor, field=(96.52,132.08), lcsc=C100N)
     add('Q1', 'Q_PMOS_GSD', 'AO3401A', 137.16, 182.88,
-        footprint='Package_TO_SOT_SMD:SOT-23', field=(153.67,181.61))
-    add('R1', 'R', '100k 1%', 104.14, 160.02, footprint=resistor, field=(115.57,157.48))
-    add('R4', 'R', '1k', 76.2, 182.88, 90, resistor, field=(76.2,174))
+        footprint='Package_TO_SOT_SMD:SOT-23', field=(153.67,181.61), lcsc='C15127')
+    add('R1', 'R', '100k 1%', 104.14, 160.02, footprint=resistor, field=(115.57,157.48), lcsc='C25803')
+    add('R4', 'R', '1k', 76.2, 182.88, 90, resistor, field=(76.2,174), lcsc=R1K)
     add('J2', 'Conn_01x03', 'MOISTURE PROBE', 238.76, 140.97,
-        footprint='Connector_JST:JST_PH_S3B-PH-K_1x03_P2.00mm_Horizontal')
-    add('R5', 'R', '1k', 274.32, 160.02, 90, resistor, field=(274.32,151.13))
-    add('C4', 'C', '100nF', 302.26, 175.26, footprint=capacitor, field=(313.69,172.72))
-    add('C5', 'C', '100nF', 238.76, 182.88, footprint=capacitor, field=(250.19,180.34))
+        footprint='Connector_JST:JST_PH_S3B-PH-K_1x03_P2.00mm_Horizontal', lcsc='C157929')
+    add('R5', 'R', '1k', 274.32, 160.02, 90, resistor, field=(274.32,151.13), lcsc=R1K)
+    add('C4', 'C', '100nF', 302.26, 175.26, footprint=capacitor, field=(313.69,172.72), lcsc=C100N)
+    add('C5', 'C', '100nF', 238.76, 182.88, footprint=capacitor, field=(250.19,180.34), lcsc=C100N)
     add('J3', 'Conn_02x04_Odd_Even', 'WEACT 1.54 INCH', 358.14, 147.32,
         footprint='Connector_PinSocket_2.54mm:PinSocket_2x04_P2.54mm_Vertical')
     add('C2', 'C', '10uF', 345.44, 187.96,
-        footprint='Capacitor_SMD:C_0805_2012Metric', field=(353.06,185.42))
-    add('C3', 'C', '100nF', 383.54, 187.96, footprint=capacitor, field=(392.43,185.42))
+        footprint='Capacitor_SMD:C_0805_2012Metric', field=(353.06,185.42), lcsc='C15850')
+    add('C3', 'C', '100nF', 383.54, 187.96, footprint=capacitor, field=(392.43,185.42), lcsc=C100N)
+    # 08: 1S protection. DW01A (U2) above the FS8205A pair (Q2), gates wired direct.
+    add('U2', 'DW01A', 'DW01A', 157.48, 111.76, footprint=sot236,
+        field=(157.48,102.87), lcsc='C351410')
+    add('Q2', 'FS8205A_SOT23-6', 'FS8205A', 157.48, 134.62, footprint=sot236,
+        field=(157.48,142.24), lcsc='C2830320')
+    add('R6', 'R', '100R', 127.0, 106.68, footprint=resistor, field=(130.81,104.14), lcsc='C22775')
+    add('C6', 'C', '100nF', 127.0, 129.54, footprint=capacitor, field=(130.81,127.0), lcsc=C100N)
+    add('R7', 'R', '1k', 190.5, 125.73, footprint=resistor, field=(194.31,123.19), lcsc=R1K)
+    add('#FLG03', 'PWR_FLAG', 'PWR_FLAG', 116.84, 140.97)
+    add('#FLG04', 'PWR_FLAG', 'PWR_FLAG', 139.7, 97.79)
     for i in range(1, 4):
         x = 38.1 + (i-1)*38.1
         add(f'TP{i}', 'TestPoint', f'TP{i}', x, 226.06,
@@ -211,6 +251,12 @@ def main():
             return 'U1.' + mapping[logical[3:]]
         if logical.startswith('Q1.'):
             return 'Q1.' + {'G':'1', 'S':'2', 'D':'3'}[logical[3:]]
+        if logical.startswith('U2.'):   # DW01A, SOT-23-6
+            return 'U2.' + {'OD':'1', 'CS':'2', 'OC':'3', 'TD':'4',
+                            'VCC':'5', 'GND':'6'}[logical[3:]]
+        if logical.startswith('Q2.'):   # FS8205A, SOT-23-6
+            return 'Q2.' + {'S1':'1', 'D2':'2', 'S2':'3', 'G2':'4',
+                            'D5':'5', 'G1':'6'}[logical[3:]]
         if logical.startswith('TP'):
             return logical + '.1'
         return logical
@@ -243,6 +289,13 @@ def main():
                     ITEMS.append(f'(junction (at {mid[0]} {mid[1]}) (diameter 0) '
                                  f'(color 0 0 0 0) (uuid "{uid(str(mid))}"))')
         label(net, unique[-1])
+    # DW01A OD/OC drop straight onto the FS8205A gates below it.
+    for a, b in (('U2.1', 'Q2.6'), ('U2.3', 'Q2.4')):
+        assert nets[a] == nets[b]
+        wire(POS[a], POS[b])
+        # OD's label reads leftwards so the two never overlap.
+        label(nets[a], (POS[a][0], round((POS[a][1] + POS[b][1]) / 2, 2)), right=(a == 'U2.1'))
+        handled.update((a, b))
     for pin, net in nets.items():
         if pin in handled:
             continue
@@ -253,13 +306,20 @@ def main():
             stub(pin, net)
     stub('#FLG01.1', 'PACK+')
     stub('#FLG02.1', 'GND')
+    stub('#FLG03.1', 'PACK_IN-')
+    stub('#FLG04.1', 'DW_VCC')
     text('PLANTER / XIAO C6-S3 CARRIER - REV B', 20, 15, 3)
-    text('01  PROTECTED BATTERY INPUT', 20, 30, 2)
+    text('01  BATTERY CELL INPUT', 20, 30, 2)
     text('JP1: fitted removable shunt. All battery loads are downstream.\n'
          'PWR_FLAG declares the external pack supply; it is not a component.',20,65)
-    text('External 1S protection PCB stays with the cell.\n'
-         'Cell + / - to B+ / B-. P+ to J1.1; P- to J1.2.\n'
-         'Do not join B- to system GND. Confirm common-port charging.',20,78)
+    text('J1 takes a bare or a protected 1S LiPo: cell + to J1.1, cell - to J1.2.\n'
+         'PACK_IN- is the cell negative. It must never join GND directly:\n'
+         'the FS8205A pair (sheet section 08) sits between them.',20,78)
+    text('08  1S CELL PROTECTION (DW01A + FS8205A)',114.3,90.17,2)
+    text('Low-side, common-drain. Q2 FET1 (S1/G1) = discharge, FET2 (S2/G2) = charge.\n'
+         'DW01A: over-charge 4.30V, over-discharge 2.50V, over-current 150mV across Q2.\n'
+         'R6 is fed from PACK+ (after JP1) so U2 current shows in the sleep measurement.\n'
+         'GND (system) = protected P-. The XIAO charger charges through Q2.',114.3,149.86)
     text('02  BATTERY MEASUREMENT',20,94,2)
     text('BOTH 200k resistors fitted. 4.2V pack -> 2.1V ADC.\n'
          'C1 at U1. Neither XIAO has an onboard A0 divider.',20,146)
@@ -280,7 +340,7 @@ def main():
     text('07  TEST POINTS',20,212,2)
     text('PROTOTYPE PCB - NOT YET A FIRST-ARTICLE-VERIFIED RELEASE',20,243,2)
     text('Board: 50.12 x 32.60mm, WeAct 1.54-inch module outline and M2.5 hole pattern (44.52 x 27.00mm).\n'
-         'Antenna end of the XIAO is over a copper keep-out. See README.md for stack-up and first-article gates.',20,251)
+         'No antenna keep-out: an external antenna is used. See README.md for stack-up and first-article gates.',20,251)
     library = '(kicad_symbol_lib (version 20250114) (generator "planter_capture")\n' + '\n'.join(SOURCES.values()) + ')\n'
     (ROOT/'Planter.kicad_sym').write_text(library)
     embedded = '\n'.join(raw.replace(f'(symbol "{name}"',f'(symbol "Planter:{name}"',1)

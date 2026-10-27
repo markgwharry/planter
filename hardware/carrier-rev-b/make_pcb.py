@@ -9,6 +9,11 @@ left corner, top view, USB-C at the bottom edge.
 
 Like make_kicad.py this is a reproducible baseline, not a round-trip editor.
 Commit any GUI edits to the .kicad_pcb before rerunning.
+
+The 1S protection (U2 DW01A + Q2 FS8205A, R6/C6/R7) sits along the bottom
+edge: U2/Q2 under the XIAO's USB end, the passives between J1 and J4. The cell
+negative (PACK_IN-) runs J1.2 -> U2 on top and U2 -> Q2.S1 on the bottom layer.
+There is no antenna keep-out: the XIAO uses an external antenna.
 """
 import math
 import re
@@ -27,8 +32,6 @@ HOLES = [(2.80, 2.80), (47.32, 2.80), (2.80, 29.80), (47.32, 29.80)]  # 44.52 x 
 NOTCH = (46.97, 6.30, 8.80, 23.80, 26.30)   # FPC fold recess on the right edge
 CORNER_R = 2.5
 XIAO = (35.10, 20.68)            # centre of the 2x7 pin field
-ANTENNA_KEEPOUT = (24.5, 0.0, W, 11.5)       # no copper at all
-ANTENNA_NO_POUR = (25.67, 11.5, 44.53, 16.5)  # tracks allowed, no plane
 
 TRACK, POWER = 0.25, 0.5
 VIA_D, VIA_DRILL = 0.6, 0.3
@@ -58,23 +61,32 @@ def write_xiao_footprint():
              '  (layer "F.Cu")',
              '  (descr "Seeed XIAO (ESP32-C6 / ESP32-S3) on 2.54mm sockets or pins, USB-C toward +y")',
              '  (attr through_hole)',
-             '  (property "Reference" "U**" (at 0 -1.5 0) (layer "F.SilkS") (effects (font (size 0.8 0.8) (thickness 0.12))))',
+             '  (property "Reference" "U**" (at 0 -1.5 0) (layer "F.SilkS") (effects (font (size 1.0 1.0) (thickness 0.15))))',
              '  (property "Value" "XIAO" (at 0 1.5 0) (layer "F.Fab") (effects (font (size 0.8 0.8) (thickness 0.12))))']
-    def line(layer, a, b, w=0.12):
+    def line(layer, a, b, w=0.15):   # 0.15 = JLCPCB's minimum silk line
         lines.append(f'  (fp_line (start {a[0]} {a[1]}) (end {b[0]} {b[1]}) (stroke (width {w}) (type solid)) (layer "{layer}"))')
     def rect(layer, x0, y0, x1, y1, w=0.12):
         for a, b in (((x0, y0), (x1, y0)), ((x1, y0), (x1, y1)), ((x1, y1), (x0, y1)), ((x0, y1), (x0, y0))):
             line(layer, a, b, w)
     rect('F.Fab', -8.89, -10.68, 8.89, 10.455, 0.1)
     rect('F.Fab', -4.5, 4.57, 4.5, 11.92, 0.1)            # USB-C receptacle
-    rect('F.SilkS', -8.95, -10.74, 8.95, 10.515)
+    # Body outline on silk. The bottom edge is broken where U2/Q2 (the 1S
+    # protection, under the USB end of the module) have pads.
+    line('F.SilkS', (-8.95, -10.74), (8.95, -10.74))
+    # Left edge broken beside J4 so its +/- polarity marks can sit there.
+    line('F.SilkS', (-8.95, -10.74), (-8.95, -0.5))
+    line('F.SilkS', (-8.95, 5.3), (-8.95, 10.515))
+    line('F.SilkS', (8.95, -10.74), (8.95, 10.515))
+    line('F.SilkS', (-8.95, 10.515), (-6.3, 10.515))
+    line('F.SilkS', (2.5, 10.515), (8.95, 10.515))
     # 0.25mm courtyard margin (not KiCad's 0.5) so H4's courtyard clears it;
     # the M2.5 screw head itself clears the socket by ~1mm.
     rect('F.CrtYd', -9.14, -9.14, -6.10, 9.14, 0.05)
     rect('F.CrtYd', 6.10, -9.14, 9.14, 9.14, 0.05)
-    lines.append('  (fp_circle (center 9.6 7.62) (end 9.85 7.62) (stroke (width 0.12) (type solid)) (fill solid) (layer "F.SilkS"))')
-    for text, y in (('ANT', -8.9), ('USB', 9.3)):
-        lines.append(f'  (fp_text user "{text}" (at 0 {y} 0) (layer "F.SilkS") (effects (font (size 0.8 0.8) (thickness 0.12))))')
+    lines.append('  (fp_circle (center 9.6 7.62) (end 9.85 7.62) (stroke (width 0.15) (type solid)) (fill solid) (layer "F.SilkS"))')
+    # 'ANT' marks the module's antenna end (orientation); the USB end now has
+    # the protection parts under it, so it carries no text.
+    lines.append('  (fp_text user "ANT" (at 0 -8.9 0) (layer "F.SilkS") (effects (font (size 1.0 1.0) (thickness 0.15))))')
     for n, x, y in pads:
         shape = 'rect' if n == 1 else 'circle'
         lines.append(f'  (pad "{n}" thru_hole {shape} (at {x} {y}) (size 1.7 1.7) (drill 1.0) (layers "*.Cu" "*.Mask"))')
@@ -120,8 +132,11 @@ def read_netlist():
         ref = kid(comp, 'ref')[1]
         if ref.startswith('#'):
             continue
+        fields = {kid(f, 'name')[1]: (f[2] if len(f) > 2 else '')
+                  for group in kids(comp, 'fields') for f in kids(group, 'field')}
         comps[ref] = dict(value=kid(comp, 'value')[1], footprint=kid(comp, 'footprint')[1],
-                          path=kid(kid(comp, 'sheetpath'), 'tstamps')[1] + kid(comp, 'tstamps')[1])
+                          path=kid(kid(comp, 'sheetpath'), 'tstamps')[1] + kid(comp, 'tstamps')[1],
+                          lcsc=fields.get('LCSC', ''))
     pins = {}
     for net in kids(kid(tree, 'nets'), 'net'):
         name = kid(net, 'name')[1]
@@ -149,10 +164,26 @@ PLACE = {
     'R4': (37.50, 22.27, 180, False),
     'R5': (37.00, 25.76, 0, False),
     'C4': (40.00, 26.585, 270, False),
-    'R2': (35.00, 28.30, 0, False),
-    'R3': (38.00, 29.70, 270, False),
-    'C1': (40.00, 29.70, 270, False),
+    # Divider nudged (R2 up, R3/C1 right) to make room for the protection pair.
+    'R2': (35.00, 27.40, 0, False),
+    'R3': (38.30, 29.70, 270, False),
+    'C1': (40.30, 29.70, 270, False),
+    # 1S protection. U2/Q2 rotated 180 so OD/OC face the gates across a gap.
+    'U2': (31.15, 30.15, 180, False),
+    'Q2': (35.45, 30.15, 180, False),
+    'R6': (24.60, 27.70, 270, False),
+    'C6': (24.60, 30.75, 270, False),
+    'R7': (22.90, 28.00, 90, False),
 }
+
+
+def set_field(fp, name, value):
+    """Carry a schematic field (LCSC part number) onto the footprint, hidden."""
+    fp.SetField(name, value)
+    # KiCad 10 creates the field visible on F.SilkS: hide it on Fab.
+    field = next(f for f in fp.GetFields() if f.GetName() == name)
+    field.SetVisible(False)
+    field.SetLayer(pcbnew.F_Fab)
 
 
 def load_fp(fpid):
@@ -188,6 +219,8 @@ def build():
         x, y, rot, bottom = PLACE[ref]
         fp.SetPosition(pt(x, y))
         fp.SetOrientationDegrees(rot)
+        if c['lcsc']:
+            set_field(fp, 'LCSC', c['lcsc'])
         board.Add(fp)
         if bottom:
             fp.Flip(fp.GetPosition(), pcbnew.FLIP_DIRECTION_LEFT_RIGHT)
@@ -200,6 +233,11 @@ def build():
     # solid rather than by spokes that can only reach that sliver.
     next(x for x in fps['U1'].Pads() if x.GetNumber() == '13').SetLocalZoneConnection(
         pcbnew.ZONE_CONNECTION_FULL)
+    # These GND pads are joined by explicit track and via; keep the plane off
+    # them so it cannot leave a starved one-spoke thermal in the tight corner.
+    for ref, num in (('Q2', '3'), ('R7', '2')):
+        next(x for x in fps[ref].Pads() if x.GetNumber() == num).SetLocalZoneConnection(
+            pcbnew.ZONE_CONNECTION_NONE)
     for i, (x, y) in enumerate(HOLES, 1):
         fp = load_fp('MountingHole:MountingHole_2.7mm_M2.5')
         fp.SetReference(f'H{i}')
@@ -214,6 +252,7 @@ def build():
     route(board, fps, nets)
     zones(board, nets)
     silk(board)
+    widen_silk(board)
     pcbnew.ZONE_FILLER(board).Fill(board.Zones())
     path = ROOT / f'{PROJECT}.kicad_pcb'
     pcbnew.SaveBoard(str(path), board)
@@ -276,7 +315,24 @@ ROUTES = [
     ('PACK_IN+', F, POWER, ['J1.1', 'JP1.1']),
     ('PACK+', F, POWER, ['JP1.2', (17.86, 18.90), 'TP1.1', (21.20, 18.90), (23.80, 21.50), 'J4.1']),
     ('PACK+', F, 0.3, ['J4.1', (25.30, 21.80), (25.30, 26.40), (25.93, 27.03), (33.20, 27.03), 'R2.1']),
-    ('VBAT_ADC', F, TRACK, ['R2.2', 'R3.1', 'C1.1', 'U1.1']),
+    ('VBAT_ADC', F, TRACK, ['R2.2', (37.70, 27.40), 'R3.1', 'C1.1', 'U1.1']),
+    # 1S protection. Cell negative: J1.2 down under J1's body, east along the
+    # bottom edge past C6 into U2.GND, then under U2/Q2 on B.Cu to Q2.S1.
+    ('PACK_IN-', F, POWER, ['J1.2', (19.40, 31.575), 'C6.2', (29.40, 31.575), 'U2.6']),
+    ('PACK_IN-', F, POWER, ['U2.6', (30.0125, 31.75)]),
+    ('PACK_IN-', B, POWER, [(30.0125, 31.75), (36.5875, 31.75)]),
+    ('PACK_IN-', F, POWER, ['Q2.1', (36.5875, 31.75)]),
+    ('PACK+', F, 0.3, ['R6.1', (25.30, 26.40)]),
+    ('DW_VCC', F, TRACK, ['R6.2', 'C6.1', (25.40, 30.15), 'U2.5']),
+    ('DW_OD', F, TRACK, ['U2.1', 'Q2.6']),
+    ('DW_OC', F, TRACK, ['U2.3', 'Q2.4']),
+    ('PROT_D', F, 0.3, ['Q2.5', 'Q2.2']),
+    # CS drops through a via between U2 and Q2 and runs back west to R7.
+    ('DW_CS', F, TRACK, ['U2.2', (33.10, 30.15)]),
+    ('DW_CS', B, TRACK, [(33.10, 30.15), (23.15, 30.15), (22.90, 29.90)]),
+    ('DW_CS', F, TRACK, [(22.90, 29.90), 'R7.1']),
+    ('GND', F, 0.3, ['R7.2', (22.90, 26.10), 'J4.2']),
+    ('GND', F, 0.3, ['Q2.3', (36.70, 28.35)]),
     # Peripheral switch, under the module.
     ('3V3', F, 0.3, ['U1.12', (28.90, 23.22), (28.90, 24.17), 'Q1.2']),
     ('3V3', F, TRACK, [(28.90, 23.22), (28.90, 19.60), (29.43, 19.075), 'R1.1']),
@@ -299,15 +355,17 @@ ROUTES = [
     ('GND', F, 0.3, ['C2.2', (10.00, 21.825), 'C3.2']),
     ('GND', F, 0.3, ['C5.2', (13.90, 22.75)]),
     ('GND', F, 0.3, ['C4.2', (41.30, 27.20)]),
-    ('GND', F, 0.3, ['R3.2', (38.00, 31.45)]),
-    ('GND', F, 0.3, ['C1.2', (40.00, 31.45)]),
+    ('GND', F, 0.3, ['R3.2', (38.30, 31.45)]),
+    ('GND', F, 0.3, ['C1.2', (40.30, 31.45)]),
     ('GND', F, 0.3, ['TP2.1', (12.00, 7.40)]),
 ]
 VIAS = [
     ('3V3_SW', (33.80, 23.22)), ('3V3_SW', (7.175, 24.20)), ('3V3_SW', (11.175, 24.20)),
     ('MOIST_OUT', (34.90, 25.76)),
     ('GND', (10.00, 21.825)), ('GND', (13.90, 22.75)), ('GND', (41.30, 27.20)),
-    ('GND', (38.00, 31.45)), ('GND', (40.00, 31.45)), ('GND', (12.00, 7.40)),
+    ('GND', (38.30, 31.45)), ('GND', (40.30, 31.45)), ('GND', (12.00, 7.40)),
+    ('PACK_IN-', (30.0125, 31.75)), ('PACK_IN-', (36.5875, 31.75)),
+    ('DW_CS', (33.10, 30.15)), ('DW_CS', (22.90, 29.90)), ('GND', (36.70, 28.35)),
     # Plane stitching
     ('GND', (8.00, 3.00)), ('GND', (20.00, 3.00)), ('GND', (8.00, 9.00)),
     ('GND', (20.00, 9.00)), ('GND', (14.50, 30.50)), ('GND', (22.00, 30.50)),
@@ -339,7 +397,7 @@ def route(board, fps, nets):
         board.Add(v)
 
 
-# ── Planes and keep-outs ─────────────────────────────────────────────────────
+# ── Planes ───────────────────────────────────────────────────────────────────
 def polygon(zone, x0, y0, x1, y1):
     o = zone.Outline()
     o.NewOutline()
@@ -357,38 +415,39 @@ def zones(board, nets):
         z.SetPadConnection(pcbnew.ZONE_CONNECTION_THERMAL)
         z.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_ALWAYS)
         board.Add(z)
-    for box, everything in ((ANTENNA_KEEPOUT, True), (ANTENNA_NO_POUR, False)):
-        z = pcbnew.ZONE(board)
-        z.SetIsRuleArea(True)
-        ls = pcbnew.LSET(); ls.AddLayer(F); ls.AddLayer(B)
-        z.SetLayerSet(ls)
-        polygon(z, *box)
-        z.SetDoNotAllowZoneFills(True)
-        z.SetDoNotAllowTracks(everything)
-        z.SetDoNotAllowVias(everything)
-        z.SetDoNotAllowPads(False)
-        z.SetDoNotAllowFootprints(False)
-        board.Add(z)
+
+
+def widen_silk(board):
+    """Bring every footprint silk line up to JLCPCB's 0.15 mm minimum
+    (KiCad's stock footprints use 0.12 mm)."""
+    for fp in board.GetFootprints():
+        for item in fp.GraphicalItems():
+            shape = item.Cast()
+            if (isinstance(shape, pcbnew.PCB_SHAPE)
+                    and shape.GetLayer() in (pcbnew.F_SilkS, pcbnew.B_SilkS)
+                    and 0 < shape.GetWidth() < mm(0.15)):
+                shape.SetWidth(mm(0.15))
 
 
 def silk(board):
-    def text(s, x, y, size=0.8, layer=pcbnew.F_SilkS, angle=0):
+    # JLCPCB's legend minimums: 1.0 mm character height, 0.15 mm line.
+    def text(s, x, y, size=1.0, layer=pcbnew.F_SilkS, angle=0):
         t = pcbnew.PCB_TEXT(board)
         t.SetText(s); t.SetPosition(pt(x, y)); t.SetLayer(layer)
-        t.SetTextSize(pcbnew.VECTOR2I(mm(size), mm(size))); t.SetTextThickness(mm(0.12))
+        t.SetTextSize(pcbnew.VECTOR2I(mm(size), mm(size))); t.SetTextThickness(mm(0.15))
         t.SetTextAngleDegrees(angle)
         if layer == pcbnew.B_SilkS:
             t.SetMirrored(True)
         board.Add(t)
-    text('PLANTER XIAO C6/S3', 16.0, 1.6, 1.0)
-    text('REV B  2026-10', 16.0, 3.2)
-    text('ANTENNA KEEP-OUT', 35.7, 5.0)
-    text('NO COPPER', 35.7, 6.4)
-    text('GND', 12.0, 4.3)
+    text('PLANTER XIAO C6/S3', 16.0, 1.6, 1.2)
+    text('REV B  2026-10', 16.0, 3.7)   # below the (20, 3) stitching via
+    text('EXT ANTENNA', 35.7, 5.0)
+    text('GND', 8.9, 6.0)               # left of TP2
     text('PACK+', 20.6, 17.1)
     text('3V3SW', 12.0, 18.2)
-    text('BAT+', 23.8, 19.2)
-    text('BAT-', 23.8, 26.9)
+    text('BAT', 23.8, 19.2)
+    text('+', 25.9, 21.8)     # J4 polarity, in the break in U1's outline
+    text('-', 25.9, 24.34)
     text('I-LINK', 15.2, 20.6, angle=90)
     text('PROBE', 5.2, 26.2, angle=90)
     text('+', 17.4, 24.1)

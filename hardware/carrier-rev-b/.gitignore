@@ -4,3 +4,4 @@ __pycache__/
 ~*.kicad_sch
 *-backups/
 build/
+output/
