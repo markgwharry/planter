@@ -125,7 +125,7 @@ Hand-fitted parts that are not in the JLCPCB BOM: the XIAO and its two 1x7
 | `make_kicad.py` | Writes `planter-carrier-rev-b.kicad_sch` and `Planter.kicad_sym`. |
 | `make_pcb.py` | Writes the custom XIAO footprint and `planter-carrier-rev-b.kicad_pcb`. It takes nets from the schematic's exported netlist, so parity holds by construction. Needs KiCad's bundled Python. |
 | `check.sh` | Regenerates everything. Fails on any ERC, DRC or parity finding. |
-| `make_fab.sh` | Into `build/fab/`: Gerber/drill zip; `-bom.csv` and `-cpl-top.csv` for JLCPCB assembly (only parts with an LCSC number, every designator listed in full); `-bom-full.csv` with everything, including the hand-fitted parts. Check JLCPCB's placement preview: SOT-23 and SOT-23-6 rotations sometimes need correcting there. |
+| `make_fab.sh` | Into `build/fab/`: Gerber/drill zip; `-bom.csv` and `-cpl-top.csv` for JLCPCB assembly (only parts with an LCSC number, every designator listed in full); `-bom-full.csv` with everything, including the hand-fitted parts. JLCPCB centres each part on its CPL coordinate, so through-hole parts (J1, J2) are written at the centre of their pins, not KiCad's pin-1 anchor. Check JLCPCB's placement preview: SOT-23 and SOT-23-6 rotations sometimes need correcting there. |
 
 Both generators are reproducible baselines. If you edit in the KiCad GUI,
 commit before re-running them.
