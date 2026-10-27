@@ -8,6 +8,8 @@
 //  This source now supports both the original v2 XIAO ESP32-S3 proposal and the
 //  Rev A XIAO ESP32-C6 carrier. Build the C6 variant with platformio-c6.ini;
 //  PLANTER_XIAO_C6 is set there and selects the C6 carrier pin map below.
+//  The Rev B PCB (hardware/carrier-rev-b) takes either chip: platformio-rev-b.ini
+//  sets PLANTER_CARRIER_REV_B, plus PLANTER_XIAO_C6 for the C6 env.
 //
 //  To build: this file replaces src/main.cpp for v2 hardware. Either move it to
 //  src/ (and move the v1 main.cpp out of src/ so PlatformIO doesn't compile two
@@ -91,7 +93,23 @@
 // ── Board pin definitions ────────────────────────────────────────
 // Both carriers use one active-low high-side P-FET for 3V3_SW. The C6 map is
 // deliberately expressed as GPIO numbers, matching Arduino's XIAO C6 variant.
-#if defined(PLANTER_XIAO_C6)
+#if defined(PLANTER_CARRIER_REV_B)
+  // Rev B PCB carrier (hardware/carrier-rev-b). Routed by XIAO pad label, so
+  // the same map serves a socketed C6 or S3: Arduino's XIAO variants resolve
+  // D0..D10 to the right GPIO for each chip. Same as Rev A except BUSY moved
+  // D6 → D7: D6 is UART0 TX on both chips and the ROM boot log would drive it
+  // into the unpowered panel's BUSY pin on every wake.
+  #define MOISTURE_PIN  D1  // A1 — C6 GPIO1 / S3 GPIO2
+  #define PERIPH_EN     D2  // LOW = 3V3_SW ON
+  #define EPD_CS        D3
+  #define EPD_DC        D4
+  #define EPD_RST       D5
+  #define EPD_BUSY      D7  // UART0 RX: an input from reset, never driven
+  #define EPD_SCLK      D8  // hardware SPI SCK on both chips
+  #define EPD_MOSI      D10 // hardware SPI MOSI on both chips
+  #define BATT_PIN      D0  // A0 — C6 GPIO0 / S3 GPIO1
+  #define BATT_DIV    2.0f  // two fitted external 200k resistors, top AND bottom
+#elif defined(PLANTER_XIAO_C6)
   #define MOISTURE_PIN  1   // D1/A1 → GPIO1 (ADC1_CH1)
   #define PERIPH_EN     2   // D2/A2 → GPIO2; LOW = 3V3_SW ON
   #define EPD_CS       21   // D3
@@ -119,7 +137,13 @@
 // ── Calibration ──────────────────────────────────────────────────
 // Relative air/water wetness scale, not volumetric soil-water content.
 // Recalibrate for a different probe, power arrangement or ADC configuration.
-#if defined(PLANTER_XIAO_C6)
+#if defined(PLANTER_CARRIER_REV_B) && !defined(PLANTER_XIAO_C6)
+  // Rev B S3 not yet calibrated. These are the C6 P1 switched-rail endpoints,
+  // used as placeholders only: they are raw counts and the S3 ADC differs.
+  // Recalibrate on first article.
+  #define MOISTURE_DRY  2661
+  #define MOISTURE_WET  1185
+#elif defined(PLANTER_XIAO_C6)
   // This perfboard prototype, USB-powered, 2026-09-09: ten readings per endpoint.
   // Dry 2660-2661 (median 2660.5); wet sensing section 1183-1186 (median 1185).
   // See hardware/c6-carrier-rev-a/perfboard-calibration-2026-09-09.md.

@@ -1,0 +1,54 @@
+Net,From,To,Notes
+PACK_IN+,J1.1,JP1.1,Cell positive (bare or protected cell)
+PACK+,JP1.2,J4.1,Lead to XIAO underside BAT+
+PACK+,JP1.2,R2.1,Battery divider top
+PACK+,JP1.2,TP1,
+PACK+,JP1.2,R6.1,DW01A supply resistor; downstream of JP1 so its current is measured
+DW_VCC,R6.2,U2.VCC,DW01A supply
+DW_VCC,R6.2,C6.1,100nF DW01A supply filter
+PACK_IN-,J1.2,Q2.S1,Cell negative into the discharge FET source
+PACK_IN-,J1.2,U2.GND,DW01A references the cell negative
+PACK_IN-,J1.2,C6.2,
+DW_OD,U2.OD,Q2.G1,Discharge FET gate
+DW_OC,U2.OC,Q2.G2,Charge FET gate
+DW_CS,U2.CS,R7.1,Current sense and charger detect through 1k
+GND,R7.2,GND,
+PROT_D,Q2.D2,Q2.D5,FS8205A common drain (pins 2 and 5)
+GND,Q2.S2,GND,Charge FET source: protected P- is system ground
+GND,J4.2,U1.GND,Lead to XIAO underside BAT-; protected P-
+VBAT_ADC,R2.2,U1.D0-A0,C6 GPIO0 / S3 GPIO1
+VBAT_ADC,R2.2,C1.1,100nF filter
+VBAT_ADC,R2.2,R3.1,Mandatory fitted bottom resistor
+GND,C1.2,GND,
+GND,R3.2,GND,
+3V3,U1.3V3,Q1.S,Always-on regulated rail
+3V3,U1.3V3,R1.1,100k pull-up upper terminal
+GATE,R1.2,Q1.G,100k pull-up lower terminal
+PERIPH_EN_N,U1.D2,R4.1,Active low
+GATE,R4.2,Q1.G,1k gate resistor
+3V3_SW,Q1.D,J2.1,Moisture power
+3V3_SW,Q1.D,J3.8,E-paper VCC
+3V3_SW,Q1.D,C2.1,10uF near J3
+3V3_SW,Q1.D,C3.1,100nF near J3
+3V3_SW,Q1.D,TP3,
+GND,C2.2,GND,
+GND,C3.2,GND,
+MOIST_OUT,J2.2,R5.1,Probe analogue output
+MOIST_ADC,R5.2,U1.D1-A1,C6 GPIO1 / S3 GPIO2
+MOIST_ADC,R5.2,C4.1,100nF filter
+GND,C4.2,GND,
+GND,J2.3,GND,
+3V3_SW,J2.1,C5.1,100nF near sensor connector
+GND,C5.2,GND,
+EPD_BUSY,J3.1,U1.D7,UART0 RX on both chips: input from reset
+EPD_RST,J3.2,U1.D5,
+EPD_DC,J3.3,U1.D4,
+EPD_CS,J3.4,U1.D3,
+EPD_SCLK,J3.5,U1.D8,Hardware SCK on both chips
+EPD_MOSI,J3.6,U1.D10,Hardware MOSI on both chips
+GND,J3.7,GND,
+GND,TP2,GND,
+NC_D6,U1.D6,NC,UART0 TX; probe at the socketed XIAO castellation
+NC_D9,U1.D9,NC,S3 default MISO; deliberately unused
+NC_VBUS,U1.VBUS,NC,Intentionally unconnected carrier pad
+NC_TD,U2.TD,NC,DW01A delay-test pin: leave open
